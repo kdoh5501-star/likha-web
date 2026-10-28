@@ -14,6 +14,8 @@
 | `success.html` / `fail.html` | 결제 결과 | 토스 리다이렉트 페이지. success는 `api/confirm` 승인 호출 후 주문으로 이동 |
 | `#orders` / `#order-{id}` | 주문 관리 | 진행 단계(결제→요구사항→작업→**PM 검수**→납품→확정), 요구사항 제출, 수정 요청, 구매 확정, 리뷰, 메시지 |
 | `#request` | 맞춤 견적 | 숨고형 5단계 질문 → 제안 목록 → 수락 후 결제 |
+| `#enterprise` | 기업·대행사 | 팀 단위 계약 안내, 진행 순서 |
+| `#faq` | 자주 묻는 질문 | 8개 문답 |
 | `#apply` | 크리에이터 등록 (EN) | 혜택 소개 + 지원 폼 |
 | `#seller` | 크리에이터 센터 (EN) | 주문 현황 지표·테이블 (판매가 비노출) |
 | `#terms` `#refund` `#privacy` | 약관 | 초안 (법률 검토 필요) |
@@ -28,7 +30,8 @@ success.html          토스 결제 성공 리다이렉트 → 서버 승인 →
 fail.html             토스 결제 실패 리다이렉트
 assets/css/style.css  디자인 토큰·레이아웃 (라이트/다크)
 assets/js/data.js     카테고리·크리에이터·서비스·패키지·옵션 예시 데이터
-assets/js/thumbs.js   예시 썸네일(SVG) — 실제 이미지로 교체
+assets/js/images.js   서비스 썸네일·포트폴리오·배너 이미지 경로 (assets/img/*, AI 생성 예시)
+assets/js/thumbs.js   이미지가 없을 때 쓰는 SVG 대체 썸네일
 assets/js/payment.js  토스페이먼츠 결제위젯 v2 연동 (+ SDK 미로드 시 모의 위젯)
 assets/js/app.js      라우터·화면·주문 흐름
 api/confirm.js        결제 승인 서버리스 함수 (Vercel) — 시크릿 키 사용

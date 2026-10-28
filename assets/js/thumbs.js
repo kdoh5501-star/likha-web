@@ -72,5 +72,13 @@ window.LIKHA_THUMB = (function () {
     return `<svg viewBox="0 0 420 300" fill="none"><rect x="40" y="60" width="150" height="180" rx="12" fill="#fff" opacity=".12"/><rect x="230" y="60" width="150" height="180" rx="12" fill="#fff" opacity=".12"/><rect x="56" y="76" width="118" height="80" rx="8" fill="#fff" opacity=".2"/><rect x="246" y="76" width="118" height="80" rx="8" fill="#fff" opacity=".2"/><rect x="56" y="170" width="90" height="10" rx="5" fill="#fff" opacity=".6"/><rect x="246" y="170" width="90" height="10" rx="5" fill="#fff" opacity=".6"/><rect x="56" y="192" width="60" height="10" rx="5" fill="#fff" opacity=".3"/><rect x="246" y="192" width="60" height="10" rx="5" fill="#fff" opacity=".3"/><rect x="56" y="214" width="70" height="14" rx="4" fill="#FDE68A"/><rect x="246" y="214" width="70" height="14" rx="4" fill="#FDE68A"/><path d="M195 150h30" stroke="#fff" stroke-width="4" stroke-linecap="round"/><path d="m218 142 8 8-8 8" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   }
 
-  return { svg, heroArt, PAL };
+  /* 실제 이미지가 있으면 <img>, 없으면 SVG */
+  const IMG = window.LIKHA_IMG || {};
+  function img(s, ratio, variant) {
+    const key = ratio === "tall" ? "pf" : "thumb";
+    const src = (IMG[key] || {})[s.id];
+    if (src && !variant) return `<img src="${src}" alt="${esc(s.title)}" loading="lazy" decoding="async">`;
+    return svg(s, ratio, variant);
+  }
+  return { svg, img, heroArt, PAL };
 })();

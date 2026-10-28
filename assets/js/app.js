@@ -31,7 +31,7 @@
   function card(s) {
     const c = cre(s.cr);
     return `<a class="scard" href="#service-${s.id}">
-      <div class="thumb">${T.svg(s)}<span class="badge">${icon(I.shield, 12)} PM 검수</span></div>
+      <div class="thumb">${T.img(s)}<span class="badge">${icon(I.shield, 12)} PM 검수</span></div>
       <div class="seller"><span class="mini-av" style="background:${c.color}">${c.init}</span>${esc(c.name)} <span class="tag" style="padding:1px 6px;font-size:11px">${c.level}</span></div>
       <div class="ttl">${esc(s.title)}</div>
       <div class="foot"><span class="rating">${stars(1)}<b>${s.rate}</b>(${s.rv})</span><span class="price num">${won(minPrice(s))}<small>~</small></span></div>
@@ -41,7 +41,10 @@
 
   /* ---------- views ---------- */
   function vHome() {
-    const pop = [...SV].sort((a, b) => b.rv - a.rv).slice(0, 8);
+    const pop = [...SV].sort((a, b) => b.rv - a.rv).slice(0, 4);
+    const biz = [12, 6, 11, 4].map(svc);
+    const used = new Set([...pop.slice(0, 4), ...biz].map(s => s.id));
+    const top = [...SV].filter(s => s.rate >= 4.8 && !used.has(s.id)).sort((a, b) => b.rate - a.rate).slice(0, 4);
     const shorts = SV.filter(s => s.cat === "shorts" || s.cat === "ai").slice(0, 4);
     const design = SV.filter(s => s.cat === "thumb" || s.cat === "motion").slice(0, 4);
     const slides = [
@@ -51,11 +54,12 @@
     ];
     return `<div class="wrap">
       <section class="hero" id="hero" aria-roledescription="carousel">
-        ${slides.map((s, i) => `<div class="slide ${i === 0 ? "on" : ""}" data-cls="${s.cls}"><div><span class="eyebrow">${s.eye}</span><h1>${s.h}</h1><p>${s.p}</p><a class="btn btn-lg" style="background:#fff;color:#111827" href="${s.btn[1]}">${s.btn[0]}</a></div><div class="art">${T.heroArt(s.art)}</div></div>`).join("")}
+        ${slides.map((s, i) => `<div class="slide ${i === 0 ? "on" : ""}" data-cls="${s.cls}" style="${(window.LIKHA_IMG||{}).hero&&window.LIKHA_IMG.hero[i]?`background-image:url(${window.LIKHA_IMG.hero[i]})`:""}"><div class="copy"><span class="eyebrow">${s.eye}</span><h1>${s.h}</h1><p>${s.p}</p><a class="btn btn-lg" style="background:#fff;color:#111827" href="${s.btn[1]}">${s.btn[0]}</a></div>${(window.LIKHA_IMG||{}).hero&&window.LIKHA_IMG.hero[i]?"":`<div class="art">${T.heroArt(s.art)}</div>`}</div>`).join("")}
         <div class="dots">${slides.map((_, i) => `<button type="button" data-dot="${i}" class="${i === 0 ? "on" : ""}" aria-label="${i + 1}번 배너"></button>`).join("")}</div>
       </section>
       <nav class="quick" aria-label="카테고리">${CATS.map(c => `<a href="#category-${c.id}"><span class="ic">${icon(c.ic, 24)}</span><b>${c.name}</b></a>`).join("")}</nav>
       <section class="sec"><div class="sec-h"><div><h2>지금 가장 많이 찾는 서비스</h2><p>리뷰가 많은 순</p></div><a href="#category-all">전체 보기 →</a></div><div class="card-grid">${pop.map(card).join("")}</div></section>
+      <section class="sec"><div class="sec-h"><div><h2>쇼핑몰 · 병원 · 학원 사장님이 많이 찾아요</h2><p>매일 콘텐츠를 올려야 하는 사업자를 위한 묶음</p></div><a href="#category-shorts">더 보기 →</a></div><div class="card-grid">${biz.map(card).join("")}</div></section>
       <section class="sec" style="padding-top:8px"><div class="trust">
         <div><span class="ic">${icon(I.shield, 20)}</span><div><b>한국 PM 전수 검수</b><span>자막 오탈자, 음량, 비율, 요청 반영을 납품 전에 확인</span></div></div>
         <div><span class="ic">${icon(I.won, 20)}</span><div><b>국내 외주보다 저렴</b><span>필리핀 코어팀이 작업해 같은 품질을 더 낮은 비용으로</span></div></div>
@@ -63,6 +67,7 @@
         <div><span class="ic">${icon(I.lock, 20)}</span><div><b>안전 결제·세금계산서</b><span>토스페이먼츠 결제, 구매 확정 전까지 환불 보장</span></div></div>
       </div></section>
       <section class="sec"><div class="sec-h"><div><h2>숏폼 · AI 영상</h2><p>매일 올리는 채널을 위한 서비스</p></div><a href="#category-shorts">더 보기 →</a></div><div class="card-grid">${shorts.map(card).join("")}</div></section>
+      <section class="sec"><div class="sec-h"><div><h2>LIKHA가 검증한 평점 4.8 이상 서비스</h2><p>PM 검수 반려율 5% 이하 크리에이터</p></div><a href="#category-all">전체 보기 →</a></div><div class="card-grid">${top.map(card).join("")}</div></section>
       <section class="sec"><div class="sec-h"><div><h2>썸네일 · 모션그래픽</h2><p>클릭률과 완성도를 올리는 디자인</p></div><a href="#category-thumb">더 보기 →</a></div><div class="card-grid">${design.map(card).join("")}</div></section>
       <section class="sec"><div class="sec-h"><div><h2>주문부터 납품까지</h2><p>모든 주문은 PM 검수를 거칩니다</p></div></div>
         <div class="process">${STEPS.map(([k, l], i) => `<div class="${k === "review" ? "hl" : ""}"><span class="n">0${i + 1}</span><b>${l}</b><span>${["토스페이먼츠 안전결제", "원본과 요청사항 업로드", "크리에이터가 편집", "한국 PM이 체크리스트로 확인", "결과물 확인, 수정 요청", "확정 후 리뷰 작성"][i]}</span></div>`).join("")}</div></section>
@@ -126,7 +131,8 @@
     const c = cre(s.cr), pi = st.pkg[s.id] ?? 1, p = s.pk[pi];
     const rvs = RV.map((r, i) => ({ who: r[0], t: r[1], sc: r[2], d: `2026.10.${String(26 - i * 3).padStart(2, "0")}`, pk: s.pk[i % 3].n }));
     const more = SV.filter(x => x.cat === s.cat && x.id !== s.id).slice(0, 4);
-    const imgs = [T.svg(s, "wide", 0), T.svg(s, "wide", 1), T.svg(s, "wide", 2)];
+    const sib = SV.filter(x => x.cat === s.cat && x.id !== s.id).concat(SV.filter(x => x.cat !== s.cat)).slice(0, 2);
+    const imgs = [T.img(s, "wide"), T.img(s, "tall"), T.img(sib[0], "tall")];
     return `<div class="wrap"><div class="detail">
       <div style="min-width:0">
         <div class="crumb"><a href="#home">홈</a>${icon(I.chev, 12)}<a href="#category-${s.cat}">${cat(s.cat).name}</a>${icon(I.chev, 12)}<span>${esc(cat(s.cat).subs[0])}</span></div>
@@ -145,7 +151,7 @@
           <tr><td>포함 사항</td>${s.pk.map(x => `<td>${x.inc.map(esc).join("<br>")}</td>`).join("")}</tr>
         </tbody></table></div>
         ${s.opts.length ? `<h3 style="font-size:15px;margin:18px 0 8px">추가 옵션</h3><div class="pricetbl"><table><tbody>${s.opts.map(o => `<tr><td>${esc(o.n)}</td><td>${esc(o.desc || "")}</td><td class="num" style="text-align:right;font-weight:700">+${won(o.price)}</td></tr>`).join("")}</tbody></table></div>` : ""}</section>
-        <section class="dsec" id="d-pf"><h2>포트폴리오</h2><div class="pf-grid">${[0, 1, 2].map(i => `<div>${T.svg(s, "tall", i)}</div>`).join("")}</div><p class="xs muted" style="margin-top:8px">포트폴리오 이미지는 예시입니다. 실제 서비스에서는 크리에이터의 작업물이 표시됩니다.</p></section>
+        <section class="dsec" id="d-pf"><h2>포트폴리오</h2><div class="pf-grid">${[s, sib[0], sib[1]].map(x => `<div>${T.img(x, "tall")}</div>`).join("")}</div><p class="xs muted" style="margin-top:8px">포트폴리오 이미지는 예시입니다. 실제 서비스에서는 크리에이터의 작업물이 표시됩니다.</p></section>
         <section class="dsec" id="d-rv"><h2>리뷰</h2>
           <div class="rv-sum"><div><div class="big num">${s.rate}</div><div class="star" style="font-size:16px">★★★★★</div><div class="xs muted">리뷰 ${s.rv}개</div></div><div class="bars">${[5, 4, 3, 2, 1].map(n => `<div class="bar"><span style="width:14px">${n}점</span><i><b style="width:${[82, 14, 3, 1, 0][5 - n]}%"></b></i><span class="num" style="width:30px;text-align:right">${[82, 14, 3, 1, 0][5 - n]}%</span></div>`).join("")}</div></div>
           ${rvs.map(r => `<div class="rv"><div class="h"><span>${stars(r.sc)} <b>${r.who}</b> · ${r.pk}</span><span class="num">${r.d}</span></div><p>${esc(r.t)}</p></div>`).join("")}</section>
@@ -190,7 +196,7 @@
     return `<div class="wrap"><div class="co">
       <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
         <div><h1>주문 · 결제</h1><div class="steps-top"><b>1 주문 확인</b>${icon(I.chev, 12)}<b>2 결제</b>${icon(I.chev, 12)}<span>3 요구사항 제출</span></div></div>
-        <div class="panel"><h2>주문 서비스</h2><div class="oitem"><div class="t">${T.svg(s)}</div><div class="b"><b>${esc(s.title)}</b><span class="sm">${p.n} · ${esc(p.desc)} · 작업 ${p.days}일 · 수정 ${p.rev}회</span>${opts.length ? `<span class="sm">옵션: ${opts.map(o => esc(o.n)).join(", ")}</span>` : ""}<span class="sm">수량 ${ck.qty}</span></div></div></div>
+        <div class="panel"><h2>주문 서비스</h2><div class="oitem"><div class="t">${T.img(s)}</div><div class="b"><b>${esc(s.title)}</b><span class="sm">${p.n} · ${esc(p.desc)} · 작업 ${p.days}일 · 수정 ${p.rev}회</span>${opts.length ? `<span class="sm">옵션: ${opts.map(o => esc(o.n)).join(", ")}</span>` : ""}<span class="sm">수량 ${ck.qty}</span></div></div></div>
         <div class="panel"><h2>주문자 정보</h2><div class="two">
           <div class="field"><label for="o-name">이름</label><input type="text" id="o-name" value="${esc(u.name || "")}" placeholder="홍길동" autocomplete="name"></div>
           <div class="field"><label for="o-phone">휴대폰</label><input type="tel" id="o-phone" value="${esc(u.phone || "")}" placeholder="010-0000-0000" autocomplete="tel"></div>
@@ -227,7 +233,7 @@
   function vOrders() {
     if (!st.user) return `<div class="wrap">${empty("로그인이 필요해요", "주문 내역은 로그인 후 볼 수 있어요.", '<button class="btn btn-accent" data-login>로그인</button>')}</div>`;
     if (!st.orders.length) return `<div class="wrap">${empty("아직 주문이 없어요", "마음에 드는 서비스를 골라 첫 주문을 해 보세요.", '<a class="btn btn-accent" href="#category-all">서비스 둘러보기</a>')}</div>`;
-    return `<div class="wrap sec"><div class="sec-h"><h2>내 주문</h2></div><div class="olist">${[...st.orders].reverse().map(o => { const s = svc(o.sid); return `<a class="oli" href="#order-${o.id}"><div class="t">${T.svg(s)}</div><div class="b"><span><span class="status s-${o.status}">${stLabel(o.status)}</span></span><b>${esc(s.title)}</b><span class="sm muted num">주문번호 ${o.orderId || o.id} · ${s.pk[o.pi].n} · ${won(o.amount)} · ${o.date}</span></div>${icon(I.chev, 18)}</a>`; }).join("")}</div></div>`;
+    return `<div class="wrap sec"><div class="sec-h"><h2>내 주문</h2></div><div class="olist">${[...st.orders].reverse().map(o => { const s = svc(o.sid); return `<a class="oli" href="#order-${o.id}"><div class="t">${T.img(s)}</div><div class="b"><span><span class="status s-${o.status}">${stLabel(o.status)}</span></span><b>${esc(s.title)}</b><span class="sm muted num">주문번호 ${o.orderId || o.id} · ${s.pk[o.pi].n} · ${won(o.amount)} · ${o.date}</span></div>${icon(I.chev, 18)}</a>`; }).join("")}</div></div>`;
   }
   function vOrder(id) {
     const o = st.orders.find(x => x.id === +id); if (!o) return vNotFound();
@@ -251,7 +257,7 @@
         <div><a class="sm muted" href="#orders">← 내 주문</a><h1 style="font-size:22px;font-weight:800;margin-top:6px">주문번호 <span class="num">${o.orderId || o.id}</span></h1><div class="sm muted num">${o.date} 결제 · ${o.method === "mock" ? "테스트 결제" : "토스페이먼츠"}</div></div>
         <div class="panel"><div class="progress">${STEPS.map(([k, l], i) => `<div class="${i < idx ? "done" : i === idx ? "cur" : ""}"><i></i>${l}</div>`).join("")}</div></div>
         ${action}
-        <div class="panel"><h2>주문 정보</h2><div class="oitem"><div class="t">${T.svg(s)}</div><div class="b"><b>${esc(s.title)}</b><span class="sm">${p.n} · ${esc(p.desc)}${o.optNames && o.optNames.length ? " · 옵션: " + o.optNames.map(esc).join(", ") : ""}</span><span class="sm num">결제금액 ${won(o.amount)}</span></div></div>${o.req ? `<hr class="hr"><div class="sm"><b>요청사항</b><p class="muted" style="margin-top:4px">${esc(o.req)}</p></div>` : ""}</div>
+        <div class="panel"><h2>주문 정보</h2><div class="oitem"><div class="t">${T.img(s)}</div><div class="b"><b>${esc(s.title)}</b><span class="sm">${p.n} · ${esc(p.desc)}${o.optNames && o.optNames.length ? " · 옵션: " + o.optNames.map(esc).join(", ") : ""}</span><span class="sm num">결제금액 ${won(o.amount)}</span></div></div>${o.req ? `<hr class="hr"><div class="sm"><b>요청사항</b><p class="muted" style="margin-top:4px">${esc(o.req)}</p></div>` : ""}</div>
       </div>
       <aside class="panel"><h2>메시지</h2><p class="sm muted">크리에이터와 PM이 함께 보는 대화방입니다. 한국어로 쓰셔도 돼요.</p>
         <div class="msgs" id="msgs">${o.msgs.map(m => `<div class="msg ${m.me ? "me" : ""}">${esc(m.t)}<small>${m.me ? "나" : esc(m.w)}</small></div>`).join("")}</div>
@@ -348,6 +354,26 @@
     }[k];
     return `<div class="wrap legal"><h1>${T2[0]}</h1><p class="draft">초안입니다. 게시 전에 법률 검토가 필요합니다. 시행일: <span class="ph">[시행일]</span></p>${T2[1]}</div>`;
   }
+  function vFaq() {
+    const Q = [["주문하면 누가 작업하나요?", "LIKHA 아카데미를 수료한 필리핀 코어팀 크리에이터가 작업하고, 한국 PM이 납품 전에 검수합니다. 크리에이터 프로필에서 작업 이력과 평점을 볼 수 있어요."],
+      ["한국어로 요청해도 되나요?", "네. 요청사항은 한국어로 적어 주세요. PM이 크리에이터에게 전달하고, 메시지도 PM이 함께 봅니다."],
+      ["원본 영상은 어떻게 보내나요?", "결제 후 주문 화면의 요구사항 제출에서 업로드합니다. 대용량은 드라이브 링크로 보내 주셔도 됩니다. 원본은 LIKHA 클라우드에서만 관리됩니다."],
+      ["수정은 몇 번까지 되나요?", "패키지에 적힌 횟수만큼 포함되며, 추가 수정은 옵션으로 구매할 수 있습니다."],
+      ["환불은 어떻게 되나요?", "요구사항 제출 전에는 전액 환불, 작업 중에는 진행 정도에 따라 환불, 구매 확정 후에는 환불되지 않습니다. 회사 귀책으로 납기를 못 지키면 전액 환불합니다."],
+      ["세금계산서가 필요해요.", "결제 수단에서 가상계좌를 선택하거나, 결제 후 주문 상세에서 사업자 정보를 등록하면 발행됩니다."],
+      ["결과물 저작권은 누구에게 있나요?", "구매 확정 시점에 고객에게 양도됩니다. LIKHA는 동의 없이 결과물을 홍보에 쓰지 않습니다."],
+      ["월 단위로 꾸준히 맡길 수 있나요?", "묶음 상품(예: 릴스 10편)을 주문하거나 맞춤 견적으로 월 물량을 요청하면 전담 크리에이터를 배정해 드립니다."]];
+    return `<div class="wrap legal"><h1>자주 묻는 질문</h1><div class="faq" style="margin-top:20px">${Q.map(([q, a], i) => `<details ${i === 0 ? "open" : ""}><summary>${q}</summary><p>${a}</p></details>`).join("")}</div>
+      <div class="notice info" style="margin-top:28px">${icon(I.chat, 18)}<span>더 궁금한 점은 고객센터 010-8357-7917 (평일 10:00~19:00) 또는 yko0107@gmail.com 으로 문의해 주세요.</span></div></div>`;
+  }
+  function vEnterprise() {
+    return `<div class="wrap">
+      <div class="apply-hero"><div><span style="color:var(--accent);font-weight:700;letter-spacing:.1em;font-size:13px">LIKHA FOR BUSINESS</span><h1>월 100편 이상도<br>전담 팀이 맡습니다</h1><p>프로덕션, 광고대행사, 숏폼 대행사, 다점포 브랜드를 위한 팀 단위 계약. 전담 PM과 크리에이터 팀을 배정하고 화이트라벨로 납품합니다.</p><div style="display:flex;gap:10px;margin-top:22px;flex-wrap:wrap"><a class="btn btn-accent btn-lg" href="#request">견적 요청</a><a class="btn btn-line btn-lg" href="#category-all">서비스 보기</a></div></div>
+        <div class="benefits"><div><b>전담 PM + 크리에이터 팀</b><span>월 물량에 맞춰 팀을 고정 배정합니다. 톤이 흔들리지 않아요.</span></div><div><b>화이트라벨 납품</b><span>귀사 이름으로 최종 고객에게 납품할 수 있습니다.</span></div><div><b>월 정산 · 세금계산서</b><span>건별 결제 대신 월 단위 정산과 세금계산서 발행.</span></div></div></div>
+      <section class="sec"><div class="sec-h"><h2>이렇게 진행됩니다</h2></div><div class="process" style="grid-template-columns:repeat(4,1fr)">${[["01", "견적 요청", "월 물량·콘텐츠 종류·레퍼런스"], ["02", "파일럿 1주", "소량으로 톤과 검수 기준 맞추기"], ["03", "팀 배정", "전담 PM + 크리에이터 팀 확정"], ["04", "월 운영", "주간 리포트, 월 정산"]].map(([n, b, s]) => `<div><span class="n">${n}</span><b>${b}</b><span>${s}</span></div>`).join("")}</div></section>
+      <section class="sec" style="padding-bottom:56px"><div class="cta2"><a href="#request"><div><b>월 물량을 알려 주세요</b><span>2시간 안에 팀 구성과 견적을 제안합니다</span></div><span class="arr">${icon(I.arrow, 18)}</span></a><a href="#creator-1"><div><b>크리에이터 둘러보기</b><span>코어팀 프로필과 작업 이력</span></div><span class="arr">${icon(I.arrow, 18)}</span></a></div></section>
+    </div>`;
+  }
   const vNotFound = () => `<div class="wrap">${empty("페이지를 찾을 수 없어요", "주소가 바뀌었거나 없는 페이지예요.", '<a class="btn btn-accent" href="#home">홈으로</a>')}</div>`;
 
   /* ---------- modal ---------- */
@@ -392,6 +418,8 @@
     else if (h === "request") html = vRequest();
     else if (h === "apply") html = vApply();
     else if (h === "seller") html = vSeller();
+    else if (h === "faq") { view = "legal"; html = vFaq(); }
+    else if (h === "enterprise") html = vEnterprise();
     else if (["terms", "refund", "privacy"].includes(h)) { view = "legal"; html = vLegal(h); }
     else { view = "404"; html = vNotFound(); }
     $("#app").innerHTML = html; cur = view; chrome(view);
