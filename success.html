@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>결제 완료 · LIKHA</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="assets/css/style.css">
+<style>.box{max-width:520px;margin:60px auto;padding:0 16px;display:flex;flex-direction:column;gap:16px;text-align:center}.box h1{font-size:24px;font-weight:800}.ic{width:72px;height:72px;border-radius:50%;background:var(--ok-soft);color:var(--ok);display:grid;place-items:center;margin:0 auto}.kv{text-align:left;display:flex;flex-direction:column;gap:8px;font-size:14px}.kv div{display:flex;justify-content:space-between;gap:12px}.kv span:first-child{color:var(--muted)}</style>
+</head>
+<body>
+<div class="box">
+  <div class="ic"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg></div>
+  <h1 id="title">결제를 확인하고 있어요</h1>
+  <p class="muted" id="desc">잠시만 기다려 주세요.</p>
+  <div class="panel kv" id="kv" hidden></div>
+  <div class="notice warn" id="warn" hidden></div>
+  <a class="btn btn-accent btn-lg" id="go" href="./">주문으로 이동</a>
+</div>
+<script>
+(async function(){
+  const q=new URLSearchParams(location.search);
+  const paymentKey=q.get("paymentKey"),orderId=q.get("orderId"),amount=+q.get("amount");
+  const $=s=>document.querySelector(s);
+  let pending=null; try{pending=JSON.parse(localStorage.getItem("likha-pending")||"null")}catch(e){}
+  const won=n=>Number(n).toLocaleString("ko-KR")+"원";
+  if(!paymentKey||!orderId){ $("#title").textContent="결제 정보가 없어요"; $("#desc").textContent="결제창에서 돌아온 정보가 없습니다. 처음부터 다시 시도해 주세요."; return; }
+  if(pending&&pending.orderId===orderId&&pending.amount!==amount){ $("#title").textContent="결제 금액이 일치하지 않아요"; $("#desc").textContent="보안을 위해 결제를 승인하지 않았습니다. 고객센터로 문의해 주세요."; return; }
+  /* 서버 승인: api/confirm.js (Vercel) — 정적 호스팅(GitHub Pages)에서는 404가 나므로 '승인 대기'로 표시 */
+  let confirmed=false,detail=null,note="";
+  try{
+    const r=await fetch("api/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paymentKey,orderId,amount})});
+    if(r.ok){ detail=await r.json(); confirmed=true; }
+    else { const t=await r.text(); note = r.status===404 ? "승인 서버(api/confirm)가 아직 연결되지 않았습니다. Vercel 등에 배포하고 TOSS_SECRET_KEY를 설정하면 자동 승인됩니다." : "승인 요청이 거절되었습니다: "+t.slice(0,200); }
+  }catch(e){ note="승인 서버에 연결할 수 없습니다. 배포 환경에서 api/confirm 을 확인해 주세요."; }
+  $("#title").textContent=confirmed?"결제가 완료됐어요":"결제 승인 대기 중";
+  $("#desc").textContent=confirmed?"요구사항을 제출하면 크리에이터가 바로 작업을 시작합니다.":"토스페이먼츠 결제는 끝났고, 서버 승인만 남았습니다.";
+  const kv=$("#kv"); kv.hidden=false;
+  kv.innerHTML=`<div><span>주문번호</span><b class="num">${orderId}</b></div><div><span>결제금액</span><b class="num">${won(amount)}</b></div>${detail&&detail.method?`<div><span>결제수단</span><b>${detail.method}</b></div>`:""}${detail&&detail.approvedAt?`<div><span>승인시각</span><b class="num">${new Date(detail.approvedAt).toLocaleString("ko-KR")}</b></div>`:""}`;
+  if(note){ $("#warn").hidden=false; $("#warn").textContent=note; }
+  try{ localStorage.setItem("likha-paid",JSON.stringify({paymentKey,orderId,amount,confirmed,pending})); localStorage.removeItem("likha-pending"); }catch(e){}
+  $("#go").href="./#orders";
+})();
+</script>
+</body>
+</html>

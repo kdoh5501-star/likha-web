@@ -1,0 +1,1 @@
+{ "cleanUrls": false, "functions": { "api/confirm.js": { "maxDuration": 10 } } }
