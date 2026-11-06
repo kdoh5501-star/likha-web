@@ -18,6 +18,8 @@
   <div class="notice warn" id="warn" hidden></div>
   <a class="btn btn-accent btn-lg" id="go" href="./">주문으로 이동</a>
 </div>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/db.js"></script>
 <script>
 (async function(){
   const q=new URLSearchParams(location.search);
@@ -30,7 +32,8 @@
   /* 서버 승인: api/confirm.js (Vercel) — 정적 호스팅(GitHub Pages)에서는 404가 나므로 '승인 대기'로 표시 */
   let confirmed=false,detail=null,note="";
   try{
-    const r=await fetch("api/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({paymentKey,orderId,amount})});
+    const base=(window.LIKHA_CONFIG&&window.LIKHA_CONFIG.API_BASE)||"api"; let hdr={"Content-Type":"application/json"}; if(window.DB&&DB.live){ await DB.ready; try{ const {data:ss}=await DB.sb.auth.getSession(); if(ss.session) hdr.Authorization="Bearer "+ss.session.access_token; }catch(e){} }
+    const r=await fetch(base.replace(/\/$/,"")+"/confirm",{method:"POST",headers:hdr,body:JSON.stringify({paymentKey,orderId,amount})});
     if(r.ok){ detail=await r.json(); confirmed=true; }
     else { const t=await r.text(); note = r.status===404 ? "승인 서버(api/confirm)가 아직 연결되지 않았습니다. Vercel 등에 배포하고 TOSS_SECRET_KEY를 설정하면 자동 승인됩니다." : "승인 요청이 거절되었습니다: "+t.slice(0,200); }
   }catch(e){ note="승인 서버에 연결할 수 없습니다. 배포 환경에서 api/confirm 을 확인해 주세요."; }

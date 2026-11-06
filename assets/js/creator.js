@@ -23,18 +23,43 @@
   }
   let st; try { st = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
   if (!st || st.v !== 3) st = fresh();
+  const LIVE = !!(window.DB && window.DB.live);
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} };
+
+  /* ---------- LIVE: Supabase ↔ 화면 모델 ---------- */
+  const ms = (x) => (x ? new Date(x).getTime() : undefined);
+  function mapTask(r) {
+    const pm = r.pm || {}; if (r.pm_id && !S.PMS[r.pm_id]) S.PMS[r.pm_id] = { name: pm.name || "PM", initials: (pm.name || "PM").split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase() };
+    return { id: r.id, no: r.task_no, type: r.type, status: r.status, client: r.client_alias, pm: r.pm_id, due: ms(r.due_at), expires: ms(r.expires_at), accepted: ms(r.accepted_at), deliveredAt: ms(r.delivered_at), passedAt: ms(r.passed_at), doneAt: ms(r.done_at),
+      brief: r.brief, files: (r.files || []).map((f) => (typeof f === "string" ? f : f.name || f.path)), refs: (r.refs || []).map((f) => (typeof f === "string" ? f : f.name || f.path)), minLevel: r.min_level, base: r.fee_php, bonus: r.bonus_php, rev: r.rev, maxRev: r.max_rev, revNotes: r.rev_notes, link: r.deliverable && r.deliverable.link };
+  }
+  function mapMsg(m, me) { if (m.sender_id === me) return { from: "me", t: ms(m.created_at), text: m.text }; const tr = m.tr || {}; return { from: "pm", t: ms(m.created_at), ko: tr.ko || (m.lang === "ko" ? m.text : m.text), en: tr.en || (m.lang === "en" ? m.text : m.text), tl: tr.tl || tr.en || m.text }; }
+  async function syncLive() {
+    const me = DB.auth.user; if (!me) return;
+    const p = st.profile; p.id = me.id; p.name = me.name || me.email; p.initials = (p.name || "?").split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase(); p.city = me.city || ""; p.level = me.level || 1; p.deliveries = me.deliveries || 0; p.pass = me.first_pass || 0; p.ontime = me.ontime || 0; p.since = (me.created_at || "").slice(0, 7); p.skills = me.skills || []; p.tools = me.tools || []; p.capacity = me.capacity || 20; p.links = me.portfolio || []; const pa = me.payout_account || {}; p.payout = { method: me.payout_method || "gcash", gcash: pa.number || "", name: pa.name || "", bank: pa.bank || "", acct: pa.acct || "" };
+    const [tasks, threads, notifs, payouts] = await Promise.all([DB.tasks.mine(), DB.threads.list(), DB.notifs.list(), DB.payouts.mine()]);
+    st.tasks = tasks.map(mapTask);
+    const th = {}; for (const t of threads) { const mine = (t.members || []).find((m) => m.user_id === me.id); const k = t.id; th[k] = { kind: t.kind === "order" ? "task" : t.kind, task: t.task_id, pm: null, msgs: [], lastRead: mine ? ms(mine.last_read_at) : 0, label: t.task ? t.task.task_no : "" }; }
+    st.threads = th; st.threadsLoaded = true;
+    st.notifs = notifs.map((n) => ({ id: n.id, k: n.kind, v: n.vars || {}, go: n.link, t: ms(n.created_at), un: !n.read }));
+    st.payouts = payouts.map((x) => ({ date: x.period_end, amount: x.amount_php, method: (x.method || "").toUpperCase(), status: x.status }));
+  }
+  async function loadThreadLive(k) {
+    const th = st.threads[k]; if (!th) return; const me = DB.auth.user.id; const rows = await DB.threads.messages(k);
+    th.msgs = rows.map((m) => mapMsg(m, me)); const pmMsg = rows.find((m) => m.sender_id !== me); if (pmMsg && pmMsg.sender) { th.pm = pmMsg.sender_id; if (!S.PMS[th.pm]) S.PMS[th.pm] = { name: pmMsg.sender.name || "PM", initials: (pmMsg.sender.name || "PM").slice(0, 2).toUpperCase() }; }
+    st.read[k] = th.msgs.filter((m) => m.from === "pm").length; await DB.threads.markRead(k);
+  }
 
   const task = (id) => st.tasks.find((x) => x.id === id);
   const typ = (tp) => S.TYPES[tp];
   const tname = (tp) => t(typ(tp).key);
   const lvl = () => S.LEVELS[st.profile.level - 1];
   const nextLvl = () => S.LEVELS[st.profile.level] || null;
-  const feeOf = (tk) => { const b = tk.base || typ(tk.type).fee; return { base: b, bonus: Math.round(b * lvl().bonus / 100) }; };
+  const feeOf = (tk) => { const b = tk.base || typ(tk.type).fee; return { base: b, bonus: tk.bonus != null && LIVE ? tk.bonus : Math.round(b * lvl().bonus / 100) }; };
 
   function toast(m) { const e = $("#toast"); e.textContent = m; e.classList.add("on"); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove("on"), 2400); }
   function notify(k, v, go) { st.notifs.unshift({ id: Date.now(), k, v, go, t: Date.now(), un: true }); save(); renderBell(); }
-  const unreadMsgs = () => Object.keys(st.threads).reduce((n, k) => n + Math.max(0, st.threads[k].msgs.filter((m) => m.from === "pm").length - (st.read[k] || 0)), 0);
+  const unreadMsgs = () => LIVE && !st.threadsLoaded ? 0 : Object.keys(st.threads).reduce((n, k) => n + Math.max(0, st.threads[k].msgs.filter((m) => m.from === "pm").length - (st.read[k] || 0)), 0);
   const unreadNotifs = () => st.notifs.filter((n) => n.un).length;
 
   /* ---------- time helpers ---------- */
@@ -88,9 +113,9 @@
   const tcard = (tk, acts) => {
     const f = feeOf(tk), lvlReq = tk.minLevel && tk.minLevel > st.profile.level;
     return `<article class="tcard" data-task="${tk.id}">
-      <div><div class="top"><span class="ty">${tname(tk.type)}</span><span class="st ${tk.status}">${t("s_" + tk.status)}</span><span class="id">${tk.id}</span></div>
+      <div><div class="top"><span class="ty">${tname(tk.type)}</span><span class="st ${tk.status}">${t("s_" + tk.status)}</span><span class="id">${tk.no || tk.id}</span></div>
         <div class="ttl">${esc(tk.client)}</div>
-        <div class="meta"><span>${t("pm")}: <b>${S.PMS[tk.pm].name}</b></span><span>${t("est_time")}: <b>${typ(tk.type).est}</b></span>${tk.minLevel ? `<span>${t("level_req", { n: tk.minLevel })}</span>` : ""}</div></div>
+        <div class="meta"><span>${t("pm")}: <b>${(S.PMS[tk.pm] || { name: "PM" }).name}</b></span><span>${t("est_time")}: <b>${typ(tk.type).est}</b></span>${tk.minLevel ? `<span>${t("level_req", { n: tk.minLevel })}</span>` : ""}</div></div>
       <div class="right"><div class="fee">${fmt(f.base + f.bonus)}</div>${tk.status === "offer" ? `<span class="due soon">${t("expires_in", { h: Math.max(1, Math.round((tk.expires - Date.now()) / H)) })}</span>` : dueLabel(tk.due)}
         ${acts ? `<div class="acts">${lvlReq ? `<span class="sm muted">${t("locked", { n: tk.minLevel })}</span>` : acts}</div>` : ""}</div></article>`;
   };
@@ -136,11 +161,11 @@
 
   function vTask(id) {
     const tk = task(id); if (!tk) return `<div class="empty">${t("no_tasks")}</div>`;
-    const f = feeOf(tk), tp = typ(tk.type), ck = S.CHECKLIST[tk.type] || [], max = tp.maxRev, rev = tk.rev || 0;
+    const f = feeOf(tk), tp = typ(tk.type), ck = S.CHECKLIST[tk.type] || [], max = tk.maxRev || tp.maxRev, rev = tk.rev || 0;
     const canDeliver = tk.status === "work" || tk.status === "revision";
     const steps = [["accepted", tk.accepted], ["deliveredAt", tk.deliveredAt], ["passedAt", tk.passedAt], ["doneAt", tk.doneAt]];
     const stepL = { accepted: t("s_work"), deliveredAt: t("s_review"), passedAt: t("s_delivered"), doneAt: t("s_done") };
-    return `<div class="ph"><div><a href="#tasks" class="link">${I.back} ${t("nav_tasks")}</a><h1 style="margin-top:6px">${tname(tk.type)} · ${esc(tk.client)}</h1><p><span class="id" style="font-family:ui-monospace,monospace">${tk.id}</span> · <span class="st ${tk.status}">${t("s_" + tk.status)}</span> · ${dueLabel(tk.due)}</p></div>
+    return `<div class="ph"><div><a href="#tasks" class="link">${I.back} ${t("nav_tasks")}</a><h1 style="margin-top:6px">${tname(tk.type)} · ${esc(tk.client)}</h1><p><span class="id" style="font-family:ui-monospace,monospace">${tk.no || tk.id}</span> · <span class="st ${tk.status}">${t("s_" + tk.status)}</span> · ${dueLabel(tk.due)}</p></div>
         <div style="display:flex;gap:8px">${tk.status === "offer" ? offerActs(tk.id) : tk.status === "open" ? openActs(tk.id) : ""}<a class="btn btn-line" href="#msgs/task:${tk.id}">${t("open_chat")}</a></div></div>
       <div class="tdet"><div>
         ${tk.status === "revision" ? `<div class="panel"><h3>${t("revision_from_pm")} <span class="sm muted">${t("rev_count", { n: rev, max })}</span></h3><div class="revbox">${esc(tk.revNotes)}</div><p class="sub" style="margin:10px 0 0">${t("rev_extra")}</p></div>` : ""}
@@ -149,7 +174,7 @@
           ${tk.refs.length ? `<h3 style="margin-top:16px">${t("refs")}</h3><ul class="flist">${tk.refs.map((x) => `<li>${I.file}${esc(x)}<span class="dl">↓</span></li>`).join("")}</ul>` : ""}</div>
         <div class="panel"><h3>${t("specs")}</h3><div class="brief" style="font-size:14px">${esc(tp.specs)}</div></div>
       </div><div class="sticky-act">
-        <div class="panel"><dl class="kv"><dt>${t("fee")}</dt><dd>${fmt(f.base)}</dd><dt>${t("bonus")} +${lvl().bonus}%</dt><dd>${fmt(f.bonus)}</dd><dt><b>${t("col_total")}</b></dt><dd><b style="font-size:18px">${fmt(f.base + f.bonus)}</b></dd><dt>${t("pm")}</dt><dd>${S.PMS[tk.pm].name}</dd><dt>${t("est_time")}</dt><dd>${tp.est}</dd></dl></div>
+        <div class="panel"><dl class="kv"><dt>${t("fee")}</dt><dd>${fmt(f.base)}</dd><dt>${t("bonus")} +${lvl().bonus}%</dt><dd>${fmt(f.bonus)}</dd><dt><b>${t("col_total")}</b></dt><dd><b style="font-size:18px">${fmt(f.base + f.bonus)}</b></dd><dt>${t("pm")}</dt><dd>${(S.PMS[tk.pm] || { name: "PM" }).name}</dd><dt>${t("est_time")}</dt><dd>${tp.est}</dd></dl></div>
         ${canDeliver ? `<div class="panel"><h3>${tk.status === "revision" ? t("resubmit") : t("deliver")}</h3>
           <div class="chk" id="chk">${ck.map((c, i) => `<label><input type="checkbox" data-i="${i}">${esc(c)}</label>`).join("")}</div>
           <form id="deliverF" style="margin-top:12px"><div class="fld"><label>${t("deliver_link")}</label><input name="link" placeholder="https://drive.google.com/…" value="${tk.status === "revision" && tk.link ? esc(tk.link.replace(/v\d+/, "v" + (rev + 1))) : ""}"></div><div class="fld"><label>${t("deliver_note")}</label><textarea name="note"></textarea></div><button class="btn btn-accent" style="width:100%">${tk.status === "revision" ? t("resubmit") : t("deliver")}</button></form></div>` : ""}
@@ -164,8 +189,8 @@
     const un = Math.max(0, th.msgs.filter((m) => m.from === "pm").length - (st.read[k] || 0));
     let name, av, cls = "";
     if (th.kind === "support") { name = t("th_support"); av = "LK"; cls = "sup"; }
-    else if (th.kind === "pm") { name = S.PMS[th.pm].name + " · " + t("th_pm"); av = S.PMS[th.pm].initials; }
-    else { const tk = task(th.task); name = (tk ? tname(tk.type) + " · " + tk.client : th.task); av = S.PMS[th.pm].initials; }
+    else if (th.kind === "pm") { name = (S.PMS[th.pm] || { name: "LIKHA" }).name + " · " + t("th_pm"); av = (S.PMS[th.pm] || { initials: "PM" }).initials; }
+    else { const tk = task(th.task); name = (tk ? tname(tk.type) + " · " + tk.client : (th.label || th.task || "Task")); av = (S.PMS[th.pm] || { initials: "PM" }).initials; }
     const pv = last ? (last.from === "me" ? last.text : (last[window.I18N.lang] || last.en)) : "";
     return { name, av, cls, un, pv, last };
   }
@@ -177,6 +202,7 @@
   }
   function vMsgs(k) {
     const has = k && st.threads[k];
+    if (has && LIVE && !st.threads[k].loaded) { st.threads[k].loaded = true; loadThreadLive(k).then(() => { if (location.hash === "#msgs/" + k) render(); }); }
     if (has) { st.read[k] = st.threads[k].msgs.filter((m) => m.from === "pm").length; save(); }
     const body = has ? threadBody(k) : `<div class="nothread">${t("msgs_title")}</div>`;
     return `<div class="ph"><div><h1>${t("msgs_title")}</h1></div></div>
@@ -193,7 +219,8 @@
       <form id="chatF" data-th="${k}"><input name="m" autocomplete="off" placeholder="${t("type_msg")}" aria-label="${t("type_msg")}"><button class="btn btn-brand">${t("send")}</button></form>`;
   }
   function sendMsg(k, text) {
-    const th = st.threads[k]; th.msgs.push({ from: "me", t: Date.now(), text }); save();
+    const th = st.threads[k];
+    if (LIVE) { th.msgs.push({ from: "me", t: Date.now(), text }); render(); const b = $("#mbody"); if (b) b.scrollTop = b.scrollHeight; DB.threads.send(k, text, window.I18N.lang).catch((e) => toast(e.message)); return; } th.msgs.push({ from: "me", t: Date.now(), text }); save();
     const body = $("#mbody"); if (body) { body.innerHTML += `<div class="bub me"><div class="b">${esc(text)}</div><span class="t">${when(Date.now())}</span></div><div class="bub typing" id="typing"><div class="b">${t("pm_typing")}</div></div>`; body.scrollTop = body.scrollHeight; }
     const lo = text.toLowerCase(); const key = /link|open|access|permission|bukas/.test(lo) ? "link" : /ref|style|sample|example|reference/.test(lo) ? "ref" : /extend|extension|deadline|more time|araw/.test(lo) ? "ext" : /thank|salamat|ok|got it|noted/.test(lo) ? "thanks" : "default";
     setTimeout(() => {
@@ -259,7 +286,7 @@
         <div class="panel" style="margin-top:14px"><h3>${t("set_notif")}</h3><div class="chk">${["n_offer", "n_rev", "n_pay", "n_msg", "n_email"].map((k) => `<label><input type="checkbox" data-set="${k}" ${st.settings[k] ? "checked" : ""}>${t(k)}</label>`).join("")}</div></div>
         <div class="panel" style="margin-top:14px"><h3>${t("set_theme")}</h3><div class="radio">${[["sys", t("th_sys")], ["light", t("th_light")], ["dark", t("th_dark")]].map(([v, l]) => `<label class="${theme === v ? "on" : ""}"><input type="radio" name="theme" value="${v}" hidden ${theme === v ? "checked" : ""}>${l}</label>`).join("")}</div></div>
       </div><div>
-        <div class="panel"><a class="btn btn-line" style="width:100%" href="index.html#legal/terms">${t("set_contract")}</a><button class="btn btn-ghost" style="width:100%;margin-top:8px;color:var(--danger)" id="resetDemo">${t("set_reset")}</button></div>
+        <div class="panel"><a class="btn btn-line" style="width:100%" href="index.html#legal/terms">${t("set_contract")}</a><button class="btn btn-ghost" style="width:100%;margin-top:8px;color:var(--danger)" id="resetDemo">${LIVE ? "Log out" : t("set_reset")}</button></div>
       </div></div>`;
   }
 
@@ -276,14 +303,16 @@
   }
 
   /* ---------- actions ---------- */
-  function act(kind, id) {
+  async function act(kind, id) {
     const tk = task(id); if (!tk) return;
+    if (LIVE) { try { if (kind === "decline") { await DB.tasks.decline(id); toast(t("declined_msg")); } else { await DB.tasks.accept(id); toast(t("accepted_msg")); } await syncLive(); if (kind !== "decline") location.hash = "#task/" + id; render(); } catch (e) { toast(e.message); } return; }
     if (kind === "accept" || kind === "claim") { tk.status = "work"; tk.accepted = Date.now(); delete tk.expires; st.threads["task:" + id] = st.threads["task:" + id] || { kind: "task", task: id, pm: tk.pm, msgs: [] }; save(); toast(t("accepted_msg")); if (location.hash === "#task/" + id) render(); else location.hash = "#task/" + id; }
     else if (kind === "decline") { tk.status = "declined"; save(); toast(t("declined_msg")); render(); }
   }
   function deliver(id, link, note) {
     const tk = task(id), boxes = $$("#chk input"); if (!link) return toast(t("need_link"));
     if (boxes.length && !boxes.every((b) => b.checked)) return toast(t("need_check"));
+    if (LIVE) { DB.tasks.deliver(id, link, note, tk.status === "revision").then(async () => { const k = Object.keys(st.threads).find((x) => st.threads[x].task === id); if (k) await DB.threads.send(k, (tk.status === "revision" ? "Revision submitted: " : "Delivered: ") + link + (note ? "\n" + note : ""), "en"); await syncLive(); toast(t("delivered_msg")); render(); }).catch((e) => toast(e.message)); return; }
     if (tk.status === "revision") tk.rev = (tk.rev || 0);
     tk.status = "review"; tk.deliveredAt = Date.now(); tk.link = link;
     const k = "task:" + id; st.threads[k] = st.threads[k] || { kind: "task", task: id, pm: tk.pm, msgs: [] };
@@ -298,8 +327,8 @@
     const lb = e.target.closest("[data-lang]"); if (lb) { window.I18N.setLang(lb.dataset.lang); render(); return; }
     if (e.target.closest("#bell")) { const d = $("#ndrop"); d.hidden = !d.hidden; return; }
     if (!e.target.closest("#ndrop") && !$("#ndrop").hidden) $("#ndrop").hidden = true;
-    if (e.target.closest("#readAll")) { st.notifs.forEach((n) => (n.un = false)); save(); renderBell(); return; }
-    const nl = e.target.closest("#ndrop li"); if (nl) { const n = st.notifs.find((x) => String(x.id) === nl.dataset.id); if (n) n.un = false; save(); $("#ndrop").hidden = true; location.hash = nl.dataset.go; render(); return; }
+    if (e.target.closest("#readAll")) { st.notifs.forEach((n) => (n.un = false)); save(); renderBell(); if (LIVE) DB.notifs.readAll(); return; }
+    const nl = e.target.closest("#ndrop li"); if (nl) { const n = st.notifs.find((x) => String(x.id) === nl.dataset.id); if (n) { n.un = false; if (LIVE) DB.notifs.read(n.id); } save(); $("#ndrop").hidden = true; location.hash = nl.dataset.go; render(); return; }
     const ab = e.target.closest("[data-act]"); if (ab) { e.stopPropagation(); act(ab.dataset.act, ab.dataset.id); return; }
     const tb = e.target.closest(".tabs [data-tab]"); if (tb) { const v = location.hash.slice(1).split("/")[0]; location.hash = "#" + v + "/" + tb.dataset.tab; return; }
     const tc = e.target.closest(".tcard"); if (tc && !e.target.closest("button")) { location.hash = "#task/" + tc.dataset.task; return; }
@@ -308,13 +337,13 @@
     if (e.target.closest("[data-back]")) { location.hash = "#msgs"; return; }
     const ch = e.target.closest("[data-skill],[data-tool]"); if (ch) { ch.classList.toggle("on"); return; }
     const rl = e.target.closest(".radio label"); if (rl) { $$(".radio label", rl.parentElement).forEach((l) => l.classList.remove("on")); rl.classList.add("on"); const inp = rl.querySelector("input"); inp.checked = true; inp.dispatchEvent(new Event("change", { bubbles: true })); return; }
-    if (e.target.closest("#resetDemo")) { st = fresh(); save(); toast(t("saved")); render(); return; }
+    if (e.target.closest("#resetDemo")) { if (LIVE) { DB.auth.signOut().then(() => location.reload()); return; } st = fresh(); save(); toast(t("saved")); render(); return; }
     const les = e.target.closest("[data-les]"); if (les) { const mod = les.closest("[data-mod]").dataset.mod; st.academy[mod][+les.dataset.les] = les.checked; save(); render(); return; }
     const sc = e.target.closest("[data-set]"); if (sc) { st.settings[sc.dataset.set] = sc.checked; save(); return; }
   });
   document.addEventListener("change", (e) => {
     if (e.target.name === "method" && e.target.closest("#payF")) { $("#payFields").innerHTML = payFields(e.target.value, st.profile.payout); }
-    if (e.target.name === "lang") { window.I18N.setLang(e.target.value); render(); }
+    if (e.target.name === "lang") { window.I18N.setLang(e.target.value); if (LIVE) DB.auth.updateProfile({ lang: e.target.value }).catch(() => {}); render(); }
     if (e.target.name === "theme") { const v = e.target.value; if (v === "sys") { document.documentElement.removeAttribute("data-theme"); try { localStorage.removeItem("likha-theme"); } catch (x) {} } else { document.documentElement.setAttribute("data-theme", v); try { localStorage.setItem("likha-theme", v); } catch (x) {} } }
   });
   document.addEventListener("input", (e) => { if (e.target.name === "capacity") $("#capV").textContent = e.target.value + " " + t("per_week"); });
@@ -322,10 +351,32 @@
     const f = e.target; e.preventDefault();
     if (f.id === "chatF") { const v = f.m.value.trim(); if (!v) return; f.m.value = ""; sendMsg(f.dataset.th, v); }
     else if (f.id === "deliverF") { deliver(location.hash.split("/")[1], f.link.value.trim(), f.note.value.trim()); }
-    else if (f.id === "payF") { const p = st.profile.payout; p.method = f.method.value; if (p.method === "bank") { p.bank = f.bank.value; p.acct = f.acct.value; } else p.gcash = f.gcash.value; p.name = f.name.value; save(); toast(t("saved")); }
-    else if (f.id === "profF") { const p = st.profile; p.name = f.name.value.trim() || p.name; p.initials = p.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase(); p.city = f.city.value; p.capacity = +f.capacity.value; p.skills = $$("[data-skill].on", f).map((x) => x.dataset.skill); p.tools = $$("[data-tool].on", f).map((x) => x.dataset.tool); p.links = $$("input[name^=link]", f).map((x) => x.value.trim()).filter(Boolean); save(); toast(t("saved")); render(); }
+    else if (f.id === "payF") { const p = st.profile.payout; p.method = f.method.value; if (p.method === "bank") { p.bank = f.bank.value; p.acct = f.acct.value; } else p.gcash = f.gcash.value; p.name = f.name.value; save(); if (LIVE) DB.auth.updateProfile({ payout_method: p.method, payout_account: { number: p.gcash, name: p.name, bank: p.bank, acct: p.acct } }).then(() => toast(t("saved"))).catch((e) => toast(e.message)); else toast(t("saved")); }
+    else if (f.id === "profF") { const p = st.profile; p.name = f.name.value.trim() || p.name; p.initials = p.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase(); p.city = f.city.value; p.capacity = +f.capacity.value; p.skills = $$("[data-skill].on", f).map((x) => x.dataset.skill); p.tools = $$("[data-tool].on", f).map((x) => x.dataset.tool); p.links = $$("input[name^=link]", f).map((x) => x.value.trim()).filter(Boolean); save(); if (LIVE) DB.auth.updateProfile({ name: p.name, city: p.city, capacity: p.capacity, skills: p.skills, tools: p.tools, portfolio: p.links }).then(() => { toast(t("saved")); render(); }).catch((e) => toast(e.message)); else { toast(t("saved")); render(); } }
   });
   window.addEventListener("hashchange", render);
   window.addEventListener("likha:lang", () => { document.title = "LIKHA " + t("brand_sub"); });
-  render();
+
+  function gate(kind) {
+    const L = window.I18N.lang;
+    const copy = kind === "login" ? { ko: ["크리에이터 센터 로그인", "Google 계정으로 로그인하세요. 아직 지원 전이라면 먼저 지원서를 작성해 주세요."], en: ["Sign in to Creator Center", "Sign in with Google. If you haven't applied yet, apply first."], tl: ["Mag-sign in sa Creator Center", "Mag-sign in gamit ang Google. Kung hindi ka pa nag-a-apply, mag-apply muna."] }[L]
+      : { ko: ["크리에이터 계정이 아닙니다", "이 계정은 고객 계정입니다. 크리에이터로 지원하려면 지원 페이지로 이동하세요."], en: ["Not a creator account", "This account is a client account. To work as a creator, apply first."], tl: ["Hindi creator account", "Client account ito. Para maging creator, mag-apply muna."] }[L];
+    $("#main").innerHTML = `<div class="panel" style="max-width:460px;margin:60px auto;text-align:center"><div class="logo" style="justify-content:center;margin-bottom:14px"><span class="mark"><i></i></span><span class="word">LIKHA</span></div><h2 style="font-size:22px;font-weight:800">${copy[0]}</h2><p class="muted" style="margin:8px 0 18px">${copy[1]}</p>
+      ${kind === "login" ? `<button class="btn btn-dark" id="gLogin" style="width:100%">Continue with Google</button><p class="sm muted" style="margin-top:12px"><a class="link" href="index.html#apply">Apply as a creator →</a></p>` : `<a class="btn btn-accent" href="index.html#apply" style="width:100%">Apply as a creator</a><button class="btn btn-ghost" id="gOut" style="width:100%;margin-top:8px">Log out</button>`}</div>`;
+    renderChrome();
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest("#gLogin")) DB.auth.signInGoogle(location.href.split("#")[0] + "#dash").catch((x) => toast(x.message)); if (e.target.closest("#gOut")) DB.auth.signOut().then(() => location.reload()); });
+
+  if (LIVE) {
+    st.tasks = []; st.threads = {}; st.notifs = []; st.payouts = [];
+    DB.ready.then(async () => {
+      const boot = async (p) => {
+        if (!p) return gate("login");
+        if (!["creator", "pm", "admin"].includes(p.role)) return gate("role");
+        await syncLive(); render();
+        if (!boot.sub) { boot.sub = true; DB.notifs.subscribe((n) => { st.notifs.unshift({ id: n.id, k: n.kind, v: n.vars || {}, go: n.link, t: Date.now(), un: true }); renderBell(); syncLive().then(() => { if (!location.hash.startsWith("#msgs/")) render(); }); }); }
+      };
+      DB.auth.onChange((p, ev) => { if (ev === "SIGNED_OUT") location.reload(); else boot(p); }); boot(DB.auth.user);
+    });
+  } else render();
 })();

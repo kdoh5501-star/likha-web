@@ -1,0 +1,10 @@
+{
+  "name": "likha-web",
+  "private": true,
+  "version": "0.2.0",
+  "description": "LIKHA — Korean-Filipino video editing marketplace (static front + Vercel functions + Supabase)",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  },
+  "engines": { "node": ">=18" }
+}

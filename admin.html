@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LIKHA PM 관리</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23E8461F'/%3E%3Crect x='9' y='7' width='5' height='18' rx='1.5' fill='%23fff'/%3E%3Crect x='9' y='20' width='14' height='5' rx='1.5' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/creator.css">
+<style>
+.cc-hdr .sub{color:var(--accent)}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer}
+.row:hover{border-color:var(--line-2);box-shadow:var(--shadow)}
+.row .t{font-weight:800}.row .m{font-size:13px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+.pill{font-size:11.5px;font-weight:800;border-radius:6px;padding:2px 8px;background:var(--bg-3)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.acc{background:var(--accent-soft);color:var(--accent)}.pill.brand{background:var(--brand-soft);color:var(--brand)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sel{font:inherit;border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;background:var(--surface);color:var(--fg)}
+.demo-bar{background:var(--warn-soft);color:var(--warn);padding:10px 16px;border-radius:10px;font-size:13.5px;font-weight:600;margin-bottom:16px}
+@media (max-width:900px){.two{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+</style>
+<script>try{const t=localStorage.getItem("likha-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body class="cc">
+<header class="cc-hdr"><div class="in">
+  <a class="logo" href="admin.html#orders"><span class="mark"><i></i></span><span class="word">LIKHA</span></a><span class="sub">PM 관리</span><span class="sp"></span>
+  <div style="position:relative"><button class="ibtn" id="bell" aria-label="알림"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot" id="bellDot" hidden>0</span></button><div class="ndrop" id="ndrop" hidden></div></div>
+  <span class="avatar" id="avatar">PM</span>
+</div></header>
+<div class="cc-body"><nav class="cc-side" id="side"></nav><main class="cc-main" id="main"></main></div>
+<nav class="cc-tab" id="tab"></nav>
+<div class="toast" id="toast" role="status"></div>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/db.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/creator-data.js"></script>
+<script src="assets/js/admin.js"></script>
+</body>
+</html>

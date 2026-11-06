@@ -13,7 +13,26 @@
   const st = { user: null, q: "", cat: "all", sub: "", sort: "rec", fast: false, minP: "", maxP: "", pkg: {}, opts: {}, qty: {}, cart: null, orders: [], seq: 1001, wiz: { step: 0, a: {} }, props: null };
   try { const s = JSON.parse(localStorage.getItem("likha-state") || "null"); if (s) { st.user = s.user || null; st.orders = s.orders || []; st.seq = s.seq || 1001; } } catch (e) { }
   try { const o = JSON.parse(localStorage.getItem("likha-orders") || "null"); if (Array.isArray(o)) { o.forEach(x => { if (!st.orders.find(y => y.id === x.id)) st.orders.push(x); if (x.id >= st.seq) st.seq = x.id + 1; }); localStorage.removeItem("likha-orders"); } } catch (e) { }
-  function save() { try { localStorage.setItem("likha-state", JSON.stringify({ user: st.user, orders: st.orders, seq: st.seq })); } catch (e) { } }
+  function save() { try { localStorage.setItem("likha-state", JSON.stringify({ user: st.user, orders: LIVE ? [] : st.orders, seq: st.seq })); } catch (e) { } }
+  const LIVE = !!(window.DB && window.DB.live);
+  /* ---------- LIVE: DB 주문 → 화면 모델 ---------- */
+  function mapOrder(o, msgs, events) {
+    const s = D.SV.find(x => x.id === o.service_id) || D.SV[0]; const pi = Math.max(0, s.pk.findIndex(p => p.n === o.package_code));
+    const req = o.requirements || {}; const d = new Date(o.created_at);
+    return { id: o.id, orderId: o.order_no, sid: s.id, pi, optNames: o.options || [], qty: o.qty, amount: o.amount, status: o.status === "pending_payment" ? "paid" : o.status, revs: (events || []).filter(e => e.kind === "revision").length,
+      req: req.text || "", review: o.rating ? { sc: o.rating, t: o.review } : null, method: "toss", paymentKey: o.payment && o.payment.paymentKey, receiptUrl: o.payment && o.payment.receiptUrl,
+      date: d.toLocaleDateString("ko-KR"), due: o.due_at ? new Date(o.due_at).toLocaleDateString("ko-KR") : "-",
+      msgs: (msgs || []).map(m => ({ me: m.sender_id === (DB.auth.user || {}).id, w: m.sender && m.sender.name, t: (m.tr && m.tr.ko) || m.text, at: m.created_at })) };
+  }
+  async function loadOrdersLive() { if (!LIVE || !DB.auth.user) return; try { const rows = await DB.orders.mine(); st.orders = rows.filter(o => o.status !== "pending_payment").map(o => mapOrder(o)); } catch (e) { console.warn(e); } }
+  async function loadOrderLive(id) {
+    if (!LIVE) return; try {
+      const o = await DB.orders.get(id); if (!o) return; const ev = await DB.orders.events(id);
+      const th = await DB.threads.ensure("order", { order_id: id }, [o.pm_id]); const msgs = await DB.threads.messages(th.id);
+      const m = mapOrder(o, msgs, ev); m.threadId = th.id; const i = st.orders.findIndex(x => x.id === id); if (i >= 0) st.orders[i] = m; else st.orders.push(m); return m;
+    } catch (e) { console.warn(e); }
+  }
+  function userFromProfile(p) { return p ? { key: p.id, name: p.name || p.email, email: p.email, phone: p.phone || "", role: p.role, avatar: p.avatar_url } : null; }
   function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600); }
 
   /* ---------- pieces ---------- */
@@ -236,7 +255,7 @@
     return `<div class="wrap sec"><div class="sec-h"><h2>내 주문</h2></div><div class="olist">${[...st.orders].reverse().map(o => { const s = svc(o.sid); return `<a class="oli" href="#order-${o.id}"><div class="t">${T.img(s)}</div><div class="b"><span><span class="status s-${o.status}">${stLabel(o.status)}</span></span><b>${esc(s.title)}</b><span class="sm muted num">주문번호 ${o.orderId || o.id} · ${s.pk[o.pi].n} · ${won(o.amount)} · ${o.date}</span></div>${icon(I.chev, 18)}</a>`; }).join("")}</div></div>`;
   }
   function vOrder(id) {
-    const o = st.orders.find(x => x.id === +id); if (!o) return vNotFound();
+    const o = st.orders.find(x => String(x.id) === String(id)); if (!o) return vNotFound();
     const s = svc(o.sid), p = s.pk[o.pi], c = cre(s.cr), idx = STEPS.findIndex(x => x[0] === o.status), left = p.rev - o.revs;
     let action = "";
     if (o.status === "paid") action = `<div class="panel"><h2>요구사항 제출</h2><div class="notice info">${icon(I.doc, 18)}<span>결제가 완료됐어요. 원본과 요청사항을 제출하면 크리에이터가 바로 작업을 시작합니다.</span></div>
@@ -388,13 +407,13 @@
       <div class="or">또는 이메일</div>
       <div class="field"><input type="email" id="lg-email" placeholder="name@company.com"></div>
       <button class="btn btn-lg btn-block btn-dark" data-dologin="email">이메일로 계속</button>
-      <p class="xs muted">계속하면 <a href="#terms" style="text-decoration:underline">이용약관</a>과 <a href="#privacy" style="text-decoration:underline">개인정보 처리방침</a>에 동의하는 것입니다. 데모: 어떤 버튼을 눌러도 로그인됩니다.</p>`);
+      <p class="xs muted">계속하면 <a href="#terms" style="text-decoration:underline">이용약관</a>과 <a href="#privacy" style="text-decoration:underline">개인정보 처리방침</a>에 동의하는 것입니다. ${LIVE ? "" : "데모: 어떤 버튼을 눌러도 로그인됩니다."}</p>`);
   }
   function askModal(sid) { const s = svc(sid); if (!s) return; const c = cre(s.cr); modal(`<div style="display:flex;justify-content:space-between;align-items:center"><h2>${esc(c.name)}님에게 문의</h2><button class="btn btn-ghost btn-sm" data-close aria-label="닫기">${icon(I.x, 18)}</button></div><p class="muted sm">${esc(s.title)}</p><div class="field"><textarea id="ask-t" placeholder="원본 분량, 납기, 원하는 스타일을 적어 주세요"></textarea></div><button class="btn btn-accent btn-lg btn-block" id="askSend">문의 보내기</button><p class="xs muted">평균 응답 ${c.resp}</p>`); }
 
   /* ---------- chrome / router ---------- */
   function chrome(view) {
-    $("#authSlot").innerHTML = st.user ? `<a class="nl d-only" href="#orders">내 주문</a><button class="avatar" id="logoutBtn" title="로그아웃">${esc((st.user.name || "회원").slice(0, 1))}</button>` : `<button class="nl" data-login>로그인</button><a class="btn btn-accent btn-sm d-only" href="#apply" style="margin-left:6px">크리에이터 등록</a>`;
+    $("#authSlot").innerHTML = st.user ? `${st.user.role === "creator" ? `<a class="nl d-only" href="creator.html">Creator Center</a>` : st.user.role === "pm" || st.user.role === "admin" ? `<a class="nl d-only" href="admin.html">PM 관리</a>` : ""}<a class="nl d-only" href="#orders">내 주문</a><button class="avatar" id="logoutBtn" title="로그아웃">${esc((st.user.name || "회원").slice(0, 1))}</button>` : `<button class="nl" data-login>로그인</button><a class="btn btn-accent btn-sm d-only" href="#apply" style="margin-left:6px">크리에이터 등록</a>`;
     $$("#catnav a").forEach(a => a.classList.toggle("on", view === "category" && a.getAttribute("href") === "#category-" + st.cat));
     const tab = ["service", "creator", "category"].includes(view) ? "category" : view === "order" ? "orders" : view;
     $$("#tabbar a").forEach(a => a.classList.toggle("on", a.dataset.tab === tab));
@@ -413,8 +432,8 @@
     else if (h.startsWith("service-")) { view = "service"; html = vService(h.slice(8)); }
     else if (h.startsWith("creator-")) { view = "creator"; html = vCreator(h.slice(8)); }
     else if (h === "checkout") html = vCheckout();
-    else if (h === "orders") html = vOrders();
-    else if (h.startsWith("order-")) { view = "order"; html = st.user ? vOrder(h.slice(6)) : vOrders(); }
+    else if (h === "orders") { if (LIVE && st.user && !render._ol) { render._ol = 1; loadOrdersLive().then(render); } html = vOrders(); }
+    else if (h.startsWith("order-")) { view = "order"; if (LIVE && st.user && render._od !== h) { render._od = h; loadOrderLive(h.slice(6)).then(() => render()); } html = st.user ? vOrder(h.slice(6)) : vOrders(); }
     else if (h === "request") html = vRequest();
     else if (h === "apply") html = vApply();
     else if (h === "seller") { location.replace("creator.html#dash"); return; }
@@ -459,8 +478,18 @@
     if (t.closest("#mbg") && !t.closest(".modal")) { closeModal(); return; }
     if (t.closest("[data-close]")) { closeModal(); return; }
     if (t.closest("[data-login]")) { loginModal(); return; }
-    const dl = t.closest("[data-dologin]"); if (dl) { const em = ($("#lg-email") || {}).value || ""; st.user = { key: "user_" + Math.random().toString(36).slice(2, 10), name: em ? em.split("@")[0] : "김지은", email: em || "contact@example.com", phone: "010-1234-5678", via: dl.dataset.dologin }; save(); closeModal(); toast("로그인했어요"); const n = afterLogin; afterLogin = null; n ? n() : render(); return; }
-    if (t.closest("#logoutBtn")) { st.user = null; save(); toast("로그아웃했어요"); location.hash = "home"; render(); return; }
+    const dl = t.closest("[data-dologin]"); if (dl) {
+      if (LIVE) {
+        const via = dl.dataset.dologin; try { sessionStorage.setItem("likha-next", JSON.stringify({ hash: location.hash, cart: st.cart })); } catch (x) { }
+        try {
+          if (via === "google") await DB.auth.signInGoogle(location.origin + location.pathname);
+          else if (via === "kakao") { const { error } = await DB.sb.auth.signInWithOAuth({ provider: "kakao", options: { redirectTo: location.origin + location.pathname } }); if (error) throw error; }
+          else { const em = ($("#lg-email") || {}).value || ""; if (!/@/.test(em)) { $("#lg-email").focus(); return; } await DB.auth.signInEmail(em, location.origin + location.pathname); closeModal(); toast("로그인 링크를 " + em + " 로 보냈어요. 메일을 확인해 주세요."); }
+        } catch (err) { toast("로그인 실패: " + (err.message || err)); }
+        return;
+      }
+ const em = ($("#lg-email") || {}).value || ""; st.user = { key: "user_" + Math.random().toString(36).slice(2, 10), name: em ? em.split("@")[0] : "김지은", email: em || "contact@example.com", phone: "010-1234-5678", via: dl.dataset.dologin }; save(); closeModal(); toast("로그인했어요"); const n = afterLogin; afterLogin = null; n ? n() : render(); return; }
+    if (t.closest("#logoutBtn")) { st.user = null; if (LIVE) { st.orders = []; DB.auth.signOut(); } save(); toast("로그아웃했어요"); location.hash = "home"; render(); return; }
     if (t.closest("#megaBtn")) { const m = $("#mega"); m.hidden = !m.hidden; return; }
     if (!t.closest("#mega") && !t.closest("#megaBtn")) $("#mega").hidden = true;
     const jump = t.closest("[data-jump]"); if (jump) { e.preventDefault(); const el = document.getElementById(jump.dataset.jump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); $$(".dtabs a").forEach(a => a.classList.toggle("on", a === jump)); } return; }
@@ -483,7 +512,9 @@
     if (t.closest("#payBtn")) {
       const need = ["o-name", "o-phone", "o-email"].map(id => $("#" + id)); const bad = need.filter(i => !i.value.trim()); $("#o-err").hidden = !bad.length; if (bad.length) { bad[0].focus(); return; }
       const ck = st.cart, { s, total } = cartCalc(ck); const b = $("#payBtn"); b.disabled = true; $("#payLbl").textContent = "결제 진행 중…";
-      const pending = { orderId: orderIdNew(), sid: s.id, pi: ck.pi, opts: ck.opts, qty: ck.qty, coupon: ck.coupon, amount: total, name: need[0].value, email: need[2].value, phone: need[1].value, at: Date.now() };
+      let orderNo = orderIdNew();
+      if (LIVE) { try { const od = await DB.orders.create({ service_id: s.id, package_code: s.pk[ck.pi].n, options: cartCalc(ck).opts.map(o => o.n), qty: ck.qty, amount: total, coupon: ck.coupon || null }); orderNo = od.order_no; DB.auth.updateProfile({ phone: need[1].value, name: need[0].value }).catch(() => { }); } catch (err) { toast("주문 생성 실패: " + err.message); b.disabled = false; $("#payLbl").textContent = won(total) + " 결제하기"; return; } }
+      const pending = { orderId: orderNo, sid: s.id, pi: ck.pi, opts: ck.opts, qty: ck.qty, coupon: ck.coupon, amount: total, name: need[0].value, email: need[2].value, phone: need[1].value, at: Date.now() };
       try { localStorage.setItem("likha-pending", JSON.stringify(pending)); } catch (x) { }
       try {
         const r = await PAY.request({ orderId: pending.orderId, orderName: s.title.slice(0, 40) + (ck.qty > 1 ? " 외" : ""), amount: total, customerName: pending.name, customerEmail: pending.email, customerMobilePhone: pending.phone.replace(/\D/g, "") });
@@ -494,13 +525,13 @@
       return;
     }
     /* order */
-    const adv = t.closest("[data-adv]"); if (adv) { advance(st.orders.find(x => x.id === +adv.dataset.adv)); return; }
-    if (t.closest("#rqSend")) { const v = $("#rq-text").value.trim(); if (!v) { $("#rq-err").hidden = false; $("#rq-text").focus(); return; } const o = curOrder(); o.req = v; const f = $("#rq-file").files; o.msgs.push({ me: true, t: "요구사항을 제출했어요" + (f.length ? ` (파일 ${f.length}개)` : "") }); o.status = "work"; o.msgs.push({ w: cre(svc(o.sid).cr).name, t: "Got it! I'll start editing now. 작업 시작할게요!" }); save(); render(); return; }
+    const adv = t.closest("[data-adv]"); if (adv) { if (LIVE) return; advance(st.orders.find(x => String(x.id) === adv.dataset.adv)); return; }
+    if (t.closest("#rqSend")) { const v = $("#rq-text").value.trim(); if (!v) { $("#rq-err").hidden = false; $("#rq-text").focus(); return; } const o = curOrder(); o.req = v; const f = $("#rq-file").files; if (LIVE) { (async () => { const files = []; for (const file of f) { try { files.push(await DB.files.upload("sources", file, o.id)); } catch (x) { } } await DB.orders.update(o.id, { status: "req", requirements: { text: v, files } }); await DB.orders.event(o.id, "req", { files: files.length }); })().catch(e => toast(e.message)); } o.msgs.push({ me: true, t: "요구사항을 제출했어요" + (f.length ? ` (파일 ${f.length}개)` : "") }); o.status = "work"; o.msgs.push({ w: cre(svc(o.sid).cr).name, t: "Got it! I'll start editing now. 작업 시작할게요!" }); save(); render(); return; }
     if (t.closest("#revBtn")) { $("#revForm").hidden = false; $("#rv-text").focus(); return; }
-    if (t.closest("#revSend")) { const v = $("#rv-text").value.trim(); if (!v) { $("#rv-text").focus(); return; } const o = curOrder(); o.revs++; o.status = "work"; o.msgs.push({ me: true, t: "수정 요청: " + v }); save(); render(); toast("수정 요청을 보냈어요"); return; }
-    if (t.closest("#confirmBtn")) { const o = curOrder(); o.status = "done"; save(); render(); toast("구매 확정했어요"); return; }
+    if (t.closest("#revSend")) { const v = $("#rv-text").value.trim(); if (!v) { $("#rv-text").focus(); return; } const o = curOrder(); o.revs++; o.status = "work"; o.msgs.push({ me: true, t: "수정 요청: " + v }); if (LIVE) { DB.orders.update(o.id, { status: "work" }).then(() => DB.orders.event(o.id, "revision", { text: v })).then(() => o.threadId && DB.threads.send(o.threadId, "수정 요청: " + v, "ko")).catch(e => toast(e.message)); } save(); render(); toast("수정 요청을 보냈어요"); return; }
+    if (t.closest("#confirmBtn")) { const o = curOrder(); o.status = "done"; if (LIVE) DB.orders.update(o.id, { status: "done", confirmed_at: new Date().toISOString() }).catch(e => toast(e.message)); save(); render(); toast("구매 확정했어요"); return; }
     const sb = t.closest("[data-star]"); if (sb) { const n = +sb.dataset.star; $$("#stars button").forEach(b => b.classList.toggle("on", +b.dataset.star <= n)); $("#stars").dataset.v = n; return; }
-    if (t.closest("#rvwSend")) { const o = curOrder(); o.review = { sc: +($("#stars").dataset.v || 5), t: $("#rvw").value.trim() || "만족합니다." }; save(); render(); return; }
+    if (t.closest("#rvwSend")) { const o = curOrder(); o.review = { sc: +($("#stars").dataset.v || 5), t: $("#rvw").value.trim() || "만족합니다." }; if (LIVE) DB.orders.update(o.id, { rating: o.review.sc, review: o.review.t }).catch(e => toast(e.message)); save(); render(); return; }
     /* wizard */
     if (t.closest("#wzPrev")) { st.wiz.step--; render(); return; }
     if (t.closest("#wzNext")) { const w = st.wiz, cur2 = WIZ[w.step]; if (cur2.type === "pick") { const v = document.querySelector("input[name=wz]:checked"); if (!v) { toast("하나를 골라 주세요"); return; } w.a[cur2.key] = v.value; } else { w.a.title = $("#wz-title").value.trim(); w.a.desc = $("#wz-desc").value.trim(); w.a.name = $("#wz-name").value.trim(); w.a.phone = $("#wz-phone").value.trim(); const ok = w.a.title && w.a.desc && w.a.phone; $("#wz-err").hidden = !!ok; if (!ok) return; st.props = true; toast("견적 요청을 올렸어요"); render(); return; } w.step++; render(); return; }
@@ -518,8 +549,9 @@
   });
   document.addEventListener("likha:agree", updatePayBtn);
   document.addEventListener("submit", e => {
-    if (e.target.id === "msgForm") { e.preventDefault(); const v = $("#msgIn").value.trim(); if (!v) return; const o = curOrder(); o.msgs.push({ me: true, t: v }); save(); render(); $("#msgIn").focus(); }
-    if (e.target.id === "applyForm") { e.preventDefault(); const ok = $("#ap-name").value.trim() && $("#ap-email").value.trim() && $("#ap-pf").value.trim(); $("#ap-err").hidden = !!ok; if (!ok) return; e.target.innerHTML = `<div class="notice ok">${icon(I.check, 18)}<span><b>Application received.</b> We'll email you a short editing test within 2 business days.</span></div>`; }
+    if (e.target.id === "msgForm") { e.preventDefault(); const v = $("#msgIn").value.trim(); if (!v) return; const o = curOrder(); o.msgs.push({ me: true, t: v }); if (LIVE && o.threadId) DB.threads.send(o.threadId, v, "ko").catch(e => toast(e.message)); save(); render(); $("#msgIn").focus(); }
+    if (e.target.id === "applyForm") { e.preventDefault(); const ok = $("#ap-name").value.trim() && $("#ap-email").value.trim() && $("#ap-pf").value.trim(); $("#ap-err").hidden = !!ok; if (!ok) return;
+      if (LIVE) { const data = { name: $("#ap-name").value.trim(), portfolio: [$("#ap-pf").value.trim()], role: "creator", onboarded: true, lang: "en" }; const go = async () => { try { await DB.auth.updateProfile(data); location.href = "creator.html#profile"; } catch (err) { toast("Could not save application: " + err.message); } }; if (!DB.auth.user) { try { sessionStorage.setItem("likha-apply", JSON.stringify(data)); } catch (x) { } loginModal(go); } else go(); return; } e.target.innerHTML = `<div class="notice ok">${icon(I.check, 18)}<span><b>Application received.</b> We'll email you a short editing test within 2 business days.</span></div>`; }
   });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { closeModal(); $("#mega").hidden = true; } });
 
@@ -529,6 +561,7 @@
       const done = JSON.parse(localStorage.getItem("likha-paid") || "null"); if (!done) return;
       localStorage.removeItem("likha-paid");
       const pend = done.pending; if (!pend) return;
+      if (LIVE) { DB.ready.then(async () => { const o = await DB.orders.byNo(pend.orderId); if (o) { await loadOrderLive(o.id); location.hash = "order-" + o.id; render(); } }); return; }
       if (!st.user) st.user = { key: "user_" + Math.random().toString(36).slice(2, 10), name: pend.name, email: pend.email, phone: pend.phone };
       st.cart = { sid: pend.sid, pi: pend.pi, opts: pend.opts || {}, qty: pend.qty || 1, coupon: pend.coupon || "" };
       const o = createOrder({ orderId: pend.orderId, paymentKey: done.paymentKey, mock: false });
@@ -536,5 +569,15 @@
     } catch (e) { }
   })();
 
+  /* ---------- LIVE: 로그인 상태 연결 ---------- */
+  if (LIVE) {
+    DB.ready.then(() => {
+      const apply = async (p) => { st.user = userFromProfile(p); save(); if (st.user) { await loadOrdersLive(); } else st.orders = []; render();
+        if (st.user && afterLogin) { const f = afterLogin; afterLogin = null; closeModal(); f(); }
+        if (st.user) { try { const nx = JSON.parse(sessionStorage.getItem("likha-next") || "null"); if (nx) { sessionStorage.removeItem("likha-next"); if (nx.cart) { st.cart = nx.cart; location.hash = "checkout"; } else if (nx.hash) location.hash = nx.hash; } } catch (x) { } }
+        if (st.user) { try { const ap = JSON.parse(sessionStorage.getItem("likha-apply") || "null"); if (ap && !p.onboarded) { sessionStorage.removeItem("likha-apply"); await DB.auth.updateProfile(ap); location.href = "creator.html#profile"; return; } } catch (x) { } } };
+      DB.auth.onChange(apply); apply(DB.auth.user);
+    });
+  }
   render();
 })();
