@@ -417,7 +417,7 @@
     else if (h.startsWith("order-")) { view = "order"; html = st.user ? vOrder(h.slice(6)) : vOrders(); }
     else if (h === "request") html = vRequest();
     else if (h === "apply") html = vApply();
-    else if (h === "seller") html = vSeller();
+    else if (h === "seller") { location.replace("creator.html#dash"); return; }
     else if (h === "faq") { view = "legal"; html = vFaq(); }
     else if (h === "enterprise") html = vEnterprise();
     else if (["terms", "refund", "privacy"].includes(h)) { view = "legal"; html = vLegal(h); }
