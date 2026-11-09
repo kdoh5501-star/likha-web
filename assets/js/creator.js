@@ -95,8 +95,8 @@
     const on = (k) => (k === cur || (k === "tasks" && cur === "task") ? " on" : "");
     const nxt = nextLvl(), prog = nxt ? Math.min(100, Math.round(st.profile.deliveries / nxt.need * 100)) : 100;
     $("#side").innerHTML = NAV.map(([k, lk, ic]) => `<a href="#${k}" class="${on(k)}">${ic}${t(lk)}${counts[k] ? `<span class="n">${counts[k]}</span>` : ""}</a>`).join("") +
-      `<div class="card-lv"><span>${t("level")}</span><b>Lv.${st.profile.level} · +${lvl().bonus}%</b>${nxt ? `<span>${t("level_progress")}: ${st.profile.deliveries}/${nxt.need} ${t("deliveries")}</span><div class="bar"><i style="width:${prog}%"></i></div>` : ""}</div>
-      <div class="sec" style="margin-top:14px">LIKHA</div><a href="index.html">${I.back}${t("back_site")}</a>`;
+      (LIVE && !DB.auth.user ? "" : `<div class="card-lv"><span>${t("level")}</span><b>Lv.${st.profile.level} · +${lvl().bonus}%</b>${nxt ? `<span>${t("level_progress")}: ${st.profile.deliveries}/${nxt.need} ${t("deliveries")}</span><div class="bar"><i style="width:${prog}%"></i></div>` : ""}</div>`) +
+      `<div class="sec" style="margin-top:14px">LIKHA</div><a href="index.html">${I.back}${t("back_site")}</a>`;
     $("#tab").innerHTML = [["dash", "nav_dash", I.dash], ["board", "nav_board", I.board], ["tasks", "nav_tasks", I.tasks], ["msgs", "nav_msgs", I.msgs], ["earn", "nav_earn", I.earn]].map(([k, lk, ic]) => `<a href="#${k}" class="${on(k)}">${ic}${t(lk)}${counts[k] ? `<span class="n">${counts[k]}</span>` : ""}</a>`).join("");
     $("#langsw").innerHTML = window.I18N.langs.map(([c, n]) => `<button type="button" data-lang="${c}" class="${c === window.I18N.lang ? "on" : ""}" aria-pressed="${c === window.I18N.lang}">${c.toUpperCase()}</button>`).join("");
     $("#avatar").textContent = st.profile.initials; $("#hdrLvl").textContent = "Lv." + st.profile.level;
