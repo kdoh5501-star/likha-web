@@ -52,7 +52,8 @@ PM 추가: `update profiles set role = 'pm' where email = 'pm@example.com';`
    | `TOSS_SECRET_KEY` | 토스 개발자센터 → 결제위젯 연동 키 → 시크릿 (test_gsk_ → 심사 후 live_gsk_) |
    | `SUPABASE_URL` | 1-3의 Project URL |
    | `SUPABASE_SERVICE_ROLE_KEY` | 1-3의 service_role |
-   | `DEEPL_API_KEY` | https://www.deepl.com/pro-api 무료 키 (월 50만자) |
+   | `DEEPL_API_KEY` | (선택) https://www.deepl.com/pro-api 무료 키 (월 50만자). 없으면 MyMemory 무료 번역으로 동작 |
+   | `TRANSLATE_CONTACT_EMAIL` | (선택) MyMemory 무료 한도 5천→5만자/일 로 올리는 연락 이메일 |
    | `ALLOWED_ORIGIN` | `https://likha.kr` |
 3. Deploy. 이후 GitHub push 때마다 자동 배포.
 4. `assets/js/config.js` 의 `API_BASE` 는 `/api` 그대로 (같은 도메인). GitHub Pages를 계속 쓰려면 `https://<vercel앱>.vercel.app/api` 로.
@@ -81,13 +82,24 @@ Vercel → Settings → Domains → `likha.kr` 추가 → 안내된 A/CNAME 레�
 | 고객 전달·구매 확정·리뷰 | PM → 고객 | admin.html "고객에게 납품" → 고객 "구매 확정" |
 | 정산 | PM | admin.html → 정산 → 지급 생성 → GCash 송금 → 크리에이터 알림 |
 
-## 7. 아직 안 된 것 (다음 단계)
+## 7. 현재 상태 (2026-11-10 기준 라이브 테스트 완료)
 
-- 파일 업로드 UI: 고객 요구사항 파일은 Storage로 올라가지만, 크리에이터 납품은 아직 **링크 입력** (Drive). Storage 업로드로 바꾸는 건 반나절.
+실제 DB로 결제 → 요구사항 → 작업 생성 → 수락 → 납품 → 검수 → 고객 전달 → 구매 확정 → 정산 지급까지 전부 확인됨.
+
+추가 마이그레이션 (신규 프로젝트는 schema.sql 다음에 순서대로 실행):
+- `supabase/migrate_002_deliverables_notify.sql` — 주문 결과물(deliverables), 직원 알림 트리거, 견적 요청 테이블, 정산 플래그(paid_out), RLS 수정
+- `supabase/migrate_003_cron.sql` — pg_cron: 제안 12시간 만료→오픈, 납품 7일 후 자동 구매확정, 15·30일 정산 알림
+
+서버 함수: `api/confirm.js`(결제 승인) · `api/refund.js`(환불: 작업 전 전액 / 작업 중 부분) · `api/translate.js`(번역: DeepL → Google → **MyMemory 무료 폴백**, 키 없어도 동작)
+
+파일: 고객 요구사항 파일 → Storage `sources` (PM 다운로드, 크리에이터에겐 7일 서명 링크) · 크리에이터 납품 → 링크 또는 Storage `deliverables` (50MB 이하; 고객에겐 30일 서명 링크)
+
+### 아직 안 된 것
 - 이메일/카카오 알림톡: 지금은 사이트 내 알림만. Resend(이메일) + 알림톡은 심사 필요.
-- 제안 12시간 만료 자동 처리: Supabase **cron** (pg_cron) 한 줄 — `update tasks set status='expired' where status='offer' and expires_at < now()`.
-- 타갈로그 번역: DeepL이 타갈로그 미지원 → 영어로 대체 중. `GOOGLE_TRANSLATE_KEY` 넣으면 타갈로그까지.
-- 환불: 토스 취소 API 호출 함수(`api/refund.js`) — 정책 확정 후.
+- 토스 실결제: 개발자센터 「이용 신청하기」(사업자등록·통신판매업) 후 live 키로 교체.
+- 푸터 사업자 정보([상호]/[000-00-00000]/[주소]) 실제 값으로.
+- 도메인 likha.kr 연결 (Vercel Domains → Supabase Site URL / Google origins 같이 변경).
+- 번역 품질: 볼륨 커지면 `DEEPL_API_KEY`(무료 월 50만자) 추가 권장.
 
 ## 보안 체크리스트
 
