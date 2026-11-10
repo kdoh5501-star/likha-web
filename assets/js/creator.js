@@ -177,7 +177,7 @@
         <div class="panel"><dl class="kv"><dt>${t("fee")}</dt><dd>${fmt(f.base)}</dd><dt>${t("bonus")} +${lvl().bonus}%</dt><dd>${fmt(f.bonus)}</dd><dt><b>${t("col_total")}</b></dt><dd><b style="font-size:18px">${fmt(f.base + f.bonus)}</b></dd><dt>${t("pm")}</dt><dd>${(S.PMS[tk.pm] || { name: "PM" }).name}</dd><dt>${t("est_time")}</dt><dd>${tp.est}</dd></dl></div>
         ${canDeliver ? `<div class="panel"><h3>${tk.status === "revision" ? t("resubmit") : t("deliver")}</h3>
           <div class="chk" id="chk">${ck.map((c, i) => `<label><input type="checkbox" data-i="${i}">${esc(c)}</label>`).join("")}</div>
-          <form id="deliverF" style="margin-top:12px"><div class="fld"><label>${t("deliver_link")}</label><input name="link" placeholder="https://drive.google.com/…" value="${tk.status === "revision" && tk.link ? esc(tk.link.replace(/v\d+/, "v" + (rev + 1))) : ""}"></div><div class="fld"><label>${t("deliver_note")}</label><textarea name="note"></textarea></div><button class="btn btn-accent" style="width:100%">${tk.status === "revision" ? t("resubmit") : t("deliver")}</button></form></div>` : ""}
+          <form id="deliverF" style="margin-top:12px"><div class="fld"><label>${t("deliver_link")}</label><input name="link" placeholder="https://drive.google.com/…" value="${tk.status === "revision" && tk.link ? esc(tk.link.replace(/v\d+/, "v" + (rev + 1))) : ""}"></div>${LIVE ? `<div class="fld"><label>${t("deliver_file")}</label><input name="file" type="file" accept="image/*,video/*,.psd,.zip,.srt,.pdf,.aep,.prproj"></div>` : ""}<div class="fld"><label>${t("deliver_note")}</label><textarea name="note"></textarea></div><button class="btn btn-accent" style="width:100%">${tk.status === "revision" ? t("resubmit") : t("deliver")}</button></form></div>` : ""}
         ${tk.status === "done" ? `<div class="panel"><h3>${t("credited")}</h3><div class="kv"><dt>${t("col_date")}</dt><dd>${dateS(tk.doneAt)}</dd><dt>${t("col_total")}</dt><dd><b>${fmt(tk.base + tk.bonus)}</b></dd></div></div>` : ""}
         <div class="panel"><h3>${t("timeline")}</h3><ul class="tl">${steps.map(([k, v]) => `<li class="${v ? "on" : ""}"><div>${stepL[k]}${v ? `<span>${when(v)}</span>` : ""}</div></li>`).join("")}</ul></div>
       </div></div>`;
@@ -314,10 +314,12 @@
     if (kind === "accept" || kind === "claim") { tk.status = "work"; tk.accepted = Date.now(); delete tk.expires; st.threads["task:" + id] = st.threads["task:" + id] || { kind: "task", task: id, pm: tk.pm, msgs: [] }; save(); toast(t("accepted_msg")); if (location.hash === "#task/" + id) render(); else location.hash = "#task/" + id; }
     else if (kind === "decline") { tk.status = "declined"; save(); toast(t("declined_msg")); render(); }
   }
-  function deliver(id, link, note) {
-    const tk = task(id), boxes = $$("#chk input"); if (!link) return toast(t("need_link"));
+  function deliver(id, link, note, file) {
+    const tk = task(id), boxes = $$("#chk input"); if (!link && !file) return toast(t("need_link"));
     if (boxes.length && !boxes.every((b) => b.checked)) return toast(t("need_check"));
-    if (LIVE) { DB.tasks.deliver(id, link, note, tk.status === "revision").then(async () => { const k = Object.keys(st.threads).find((x) => st.threads[x].task === id); if (k) await DB.threads.send(k, (tk.status === "revision" ? "Revision submitted: " : "Delivered: ") + link + (note ? "\n" + note : ""), "en"); await syncLive(); toast(t("delivered_msg")); render(); }).catch((e) => toast(e.message)); return; }
+    if (file && file.size > 50 * 1024 * 1024) return toast(t("file_too_big"));
+    if (LIVE) { const btn = $("#deliverF button"); if (btn) { btn.disabled = true; btn.textContent = file ? t("uploading") : btn.textContent; }
+      (async () => { let up = null; if (file) up = await DB.files.upload("deliverables", file, id); return DB.tasks.deliver(id, link, note, tk.status === "revision", up); })().then(async () => { const k = Object.keys(st.threads).find((x) => st.threads[x].task === id); if (k) await DB.threads.send(k, (tk.status === "revision" ? "Revision submitted: " : "Delivered: ") + (link || (file ? "📎 " + file.name : "")) + (note ? "\n" + note : ""), "en"); await syncLive(); toast(t("delivered_msg")); render(); }).catch((e) => { toast(e.message); const b = $("#deliverF button"); if (b) { b.disabled = false; b.textContent = tk.status === "revision" ? t("resubmit") : t("deliver"); } }); return; }
     if (tk.status === "revision") tk.rev = (tk.rev || 0);
     tk.status = "review"; tk.deliveredAt = Date.now(); tk.link = link;
     const k = "task:" + id; st.threads[k] = st.threads[k] || { kind: "task", task: id, pm: tk.pm, msgs: [] };
@@ -355,7 +357,7 @@
   document.addEventListener("submit", (e) => {
     const f = e.target; e.preventDefault();
     if (f.id === "chatF") { const v = f.m.value.trim(); if (!v) return; f.m.value = ""; sendMsg(f.dataset.th, v); }
-    else if (f.id === "deliverF") { deliver(location.hash.split("/")[1], f.link.value.trim(), f.note.value.trim()); }
+    else if (f.id === "deliverF") { deliver(location.hash.split("/")[1], f.link.value.trim(), f.note.value.trim(), f.file && f.file.files[0]); }
     else if (f.id === "payF") { const p = st.profile.payout; p.method = f.method.value; if (p.method === "bank") { p.bank = f.bank.value; p.acct = f.acct.value; } else p.gcash = f.gcash.value; p.name = f.name.value; save(); if (LIVE) DB.auth.updateProfile({ payout_method: p.method, payout_account: { number: p.gcash, name: p.name, bank: p.bank, acct: p.acct } }).then(() => toast(t("saved"))).catch((e) => toast(e.message)); else toast(t("saved")); }
     else if (f.id === "profF") { const p = st.profile; p.name = f.name.value.trim() || p.name; p.initials = p.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase(); p.city = f.city.value; p.capacity = +f.capacity.value; p.skills = $$("[data-skill].on", f).map((x) => x.dataset.skill); p.tools = $$("[data-tool].on", f).map((x) => x.dataset.tool); p.links = $$("input[name^=link]", f).map((x) => x.value.trim()).filter(Boolean); save(); if (LIVE) DB.auth.updateProfile({ name: p.name, city: p.city, capacity: p.capacity, skills: p.skills, tools: p.tools, portfolio: p.links }).then(() => { toast(t("saved")); render(); }).catch((e) => toast(e.message)); else { toast(t("saved")); render(); } }
   });
