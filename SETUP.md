@@ -25,14 +25,14 @@ PM (admin.html) ────┘   · Auth (Google/Kakao/이메일)   └── D
    - `anon public` 키 → `SUPABASE_ANON_KEY`
    - `service_role` 키 → **Vercel 환경변수에만** (`SUPABASE_SERVICE_ROLE_KEY`). 절대 config.js에 넣지 말 것.
 4. **Authentication → URL Configuration**
-   - Site URL: `https://likha.kr` (도메인 전이면 Vercel 주소)
-   - Redirect URLs: `https://likha.kr/**`, `https://likha.kr/creator.html`, `https://likha.kr/admin.html`, `http://localhost:8787/**`
+   - Site URL: `https://likha.co.kr` (도메인 전이면 Vercel 주소)
+   - Redirect URLs: `https://likha.co.kr/**`, `https://likha.co.kr/creator.html`, `https://likha.co.kr/admin.html`, `http://localhost:8787/**`
 
 ## 2. 구글 로그인 — 10분
 
 1. https://console.cloud.google.com → 프로젝트 생성 → **APIs & Services → OAuth consent screen** (External, 앱 이름 LIKHA, 로고·개인정보처리방침 URL)
 2. **Credentials → Create → OAuth client ID → Web application**
-   - Authorized JavaScript origins: `https://likha.kr`, `http://localhost:8787`
+   - Authorized JavaScript origins: `https://likha.co.kr`, `http://localhost:8787`
    - Authorized redirect URIs: `https://<프로젝트>.supabase.co/auth/v1/callback`  ← Supabase Auth → Providers → Google 화면에 적혀 있음
 3. 발급된 **Client ID / Client Secret** 을 Supabase → **Authentication → Providers → Google** 에 입력, Enable.
 4. (선택) 카카오: Supabase Providers → Kakao. 카카오 개발자센터 REST API 키 + Client Secret. 고객(한국)용으로 유용.
@@ -54,7 +54,7 @@ PM 추가: `update profiles set role = 'pm' where email = 'pm@example.com';`
    | `SUPABASE_SERVICE_ROLE_KEY` | 1-3의 service_role |
    | `DEEPL_API_KEY` | (선택) https://www.deepl.com/pro-api 무료 키 (월 50만자). 없으면 MyMemory 무료 번역으로 동작 |
    | `TRANSLATE_CONTACT_EMAIL` | (선택) MyMemory 무료 한도 5천→5만자/일 로 올리는 연락 이메일 |
-   | `ALLOWED_ORIGIN` | `https://likha.kr` |
+   | `ALLOWED_ORIGIN` | `https://likha.co.kr` |
 3. Deploy. 이후 GitHub push 때마다 자동 배포.
 4. `assets/js/config.js` 의 `API_BASE` 는 `/api` 그대로 (같은 도메인). GitHub Pages를 계속 쓰려면 `https://<vercel앱>.vercel.app/api` 로.
 
@@ -68,7 +68,7 @@ PM 추가: `update profiles set role = 'pm' where email = 'pm@example.com';`
 
 ## 5. 도메인
 
-Vercel → Settings → Domains → `likha.kr` 추가 → 안내된 A/CNAME 레코드를 도메인 업체(가비아 등)에 입력. Supabase Site URL·Google origins도 같이 바꿀 것.
+Vercel → Settings → Domains → `likha.co.kr` 추가 → 안내된 A/CNAME 레코드를 도메인 업체(가비아 등)에 입력. Supabase Site URL·Google origins도 같이 바꿀 것.
 
 ## 6. 운영 흐름 (실모드)
 
@@ -98,7 +98,7 @@ Vercel → Settings → Domains → `likha.kr` 추가 → 안내된 A/CNAME 레�
 - 이메일/카카오 알림톡: 지금은 사이트 내 알림만. Resend(이메일) + 알림톡은 심사 필요.
 - 토스 실결제: 개발자센터 「이용 신청하기」(사업자등록·통신판매업) 후 live 키로 교체.
 - 푸터 사업자 정보([상호]/[000-00-00000]/[주소]) 실제 값으로.
-- 도메인 likha.kr 연결 (Vercel Domains → Supabase Site URL / Google origins 같이 변경).
+- 도메인 likha.co.kr 연결 완료 (2026-11-10, 가비아 DNS A @ → 216.198.79.1, CNAME www → cname.vercel-dns.com). Supabase Site URL·Google origins 반영됨.
 - 번역 품질: 볼륨 커지면 `DEEPL_API_KEY`(무료 월 50만자) 추가 권장.
 
 ## 보안 체크리스트
