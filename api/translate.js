@@ -1,5 +1,6 @@
 /* 메시지 자동 번역 (서버 전용) — DeepL API
-   환경변수: DEEPL_API_KEY (무료 플랜 가능: api-free.deepl.com), SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+   환경변수: DEEPL_API_KEY (선택, 무료 플랜 가능: api-free.deepl.com) · GOOGLE_TRANSLATE_KEY (선택) · TRANSLATE_CONTACT_EMAIL (선택, MyMemory 무료 한도 증가) · SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+   키가 하나도 없으면 MyMemory 무료 API로 번역(품질 보통, 일 5천~5만자).
    입력: {message_id}  → messages.tr = {ko, en, tl} 채움. 타갈로그는 DeepL 미지원이라 영어로 대체(추후 Google Translate로 교체 가능).
    권한: 요청자가 해당 스레드 멤버(또는 staff)일 때만. */
 const { admin, userFromReq, body, cors } = require("./_supabase");
@@ -17,6 +18,16 @@ async function gtranslate(text, target) {
   if (!r.ok) return null; const j = await r.json(); return j.data && j.data.translations[0] && j.data.translations[0].translatedText;
 }
 
+/* 키 없이 쓰는 무료 폴백 (MyMemory, 일 5만자/이메일). DEEPL/GOOGLE 키가 생기면 자동으로 그쪽이 우선. */
+async function mymemory(text, from, to) {
+  try {
+    const de = process.env.TRANSLATE_CONTACT_EMAIL ? "&de=" + encodeURIComponent(process.env.TRANSLATE_CONTACT_EMAIL) : "";
+    const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 500))}&langpair=${from}|${to}${de}`);
+    if (!r.ok) return null; const j = await r.json(); const t = j.responseData && j.responseData.translatedText;
+    if (!t || j.responseStatus !== 200 || /MYMEMORY WARNING|QUERY LENGTH LIMIT/i.test(t)) return null; return t;
+  } catch (e) { return null; }
+}
+
 module.exports = async (req, res) => {
   cors(res); if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ message: "POST only" });
@@ -30,8 +41,8 @@ module.exports = async (req, res) => {
   for (const l of ["ko", "en", "tl"]) {
     if (tr[l]) continue;
     let out = null;
-    if (l === "tl") out = await gtranslate(m.text, "tl") || (tr.en || null);                // DeepL no TL → Google or English fallback
-    else out = await deepl(m.text, LANGS[l]) || await gtranslate(m.text, l);
+    if (l === "tl") out = await gtranslate(m.text, "tl") || await mymemory(m.text, m.lang, "tl") || (tr.en || null);   // DeepL no TL → Google → MyMemory → English
+    else out = await deepl(m.text, LANGS[l]) || await gtranslate(m.text, l) || await mymemory(m.text, m.lang, l);
     if (out) tr[l] = out;
   }
   if (!tr.tl && tr.en) tr.tl = tr.en;

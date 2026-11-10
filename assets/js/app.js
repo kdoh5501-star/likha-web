@@ -20,7 +20,7 @@
     const s = D.SV.find(x => x.id === o.service_id) || D.SV[0]; const pi = Math.max(0, s.pk.findIndex(p => p.n === o.package_code));
     const req = o.requirements || {}; const d = new Date(o.created_at);
     return { id: o.id, orderId: o.order_no, sid: s.id, pi, optNames: o.options || [], qty: o.qty, amount: o.amount, status: o.status === "pending_payment" ? "paid" : o.status, revs: (events || []).filter(e => e.kind === "revision").length,
-      req: req.text || "", deliverables: o.deliverables || [], review: o.rating ? { sc: o.rating, t: o.review } : null, method: "toss", paymentKey: o.payment && o.payment.paymentKey, receiptUrl: o.payment && o.payment.receiptUrl,
+      req: req.text || "", deliverables: o.deliverables || [], refund: o.payment && o.payment.refund, review: o.rating ? { sc: o.rating, t: o.review } : null, method: "toss", paymentKey: o.payment && o.payment.paymentKey, receiptUrl: o.payment && o.payment.receiptUrl,
       date: d.toLocaleDateString("ko-KR"), due: o.due_at ? new Date(o.due_at).toLocaleDateString("ko-KR") : "-",
       msgs: (msgs || []).map(m => ({ me: m.sender_id === (DB.auth.user || {}).id, w: m.sender && m.sender.name, t: (m.tr && m.tr.ko) || m.text, at: m.created_at })) };
   }
@@ -262,6 +262,7 @@
       <div class="field"><label for="rq-text">요청사항</label><textarea id="rq-text" placeholder="예: 첫 3초에 제품 클로즈업, 자막은 노란 박스 스타일, BGM은 밝게. 참고 영상 링크도 적어 주세요."></textarea></div>
       <label class="filelbl"><input type="file" id="rq-file" multiple><b>원본 · 레퍼런스 파일 업로드</b><span>영상, 이미지, 문서 · 대용량은 클라우드 링크로</span></label><ul class="flist" id="rq-list"></ul>
       <p class="err" id="rq-err" hidden>요청사항을 적어 주세요.</p><button class="btn btn-accent btn-lg" id="rqSend">요구사항 제출하기</button></div>`;
+    else if (o.status === "refunded" || o.status === "cancelled") action = `<div class="notice ok">${icon(I.check, 18)}<span><b>${o.status === "refunded" ? "환불 완료" : "주문 취소"}</b><br>${o.refund ? `${won(o.refund.amount)}이 결제 수단으로 환불됐어요. 카드사·은행에 따라 3~7영업일 걸릴 수 있어요.` : "결제 수단으로 환불 처리됐어요."}</span></div>`;
     else if (o.status === "req") action = `<div class="panel"><h2>PM이 요청을 확인하고 있어요</h2><p style="color:var(--fg-2)">제출하신 요구사항을 한국 PM이 검토해 영어 브리프로 정리한 뒤 크리에이터에게 배정합니다. 보통 영업시간 기준 2시간 안에 작업이 시작돼요. 추가 전달 사항은 오른쪽 메시지로 남겨 주세요.</p></div>`;
     else if (o.status === "work") action = `<div class="panel"><h2>크리에이터가 작업 중이에요</h2><p style="color:var(--fg-2)">${LIVE ? "배정된 크리에이터가 편집하고 있어요." : `${esc(c.name)}님이 편집하고 있어요.`}${o.due && o.due !== "-" ? ` 예상 납품일은 <b>${o.due}</b>입니다.` : ""}${o.revs ? ` (수정 ${o.revs}회차 반영 중)` : ""}</p>${LIVE ? "" : `<button class="btn btn-line" data-adv="${o.id}">데모: 다음 단계로</button>`}</div>`;
     else if (o.status === "review") action = `<div class="panel"><h2>한국 PM이 검수 중이에요</h2><ul class="cklist"><li class="y"><i>✓</i>요청사항 반영</li><li class="y"><i>✓</i>자막 오탈자·맞춤법</li><li class="n"><i></i>음량·BGM 밸런스</li><li class="n"><i></i>화면 비율·해상도</li><li class="n"><i></i>원본 노출·저작권 소재</li></ul>${LIVE ? "" : `<button class="btn btn-line" data-adv="${o.id}">데모: 검수 완료</button>`}</div>`;
@@ -584,7 +585,7 @@
         if (st.user) { try { const ap = JSON.parse(sessionStorage.getItem("likha-apply") || "null"); if (ap && !p.onboarded) { sessionStorage.removeItem("likha-apply"); await DB.auth.updateProfile(ap); location.href = "creator.html#profile"; return; } } catch (x) { } } };
       DB.auth.onChange(apply); apply(DB.auth.user);
       /* 고객 알림: 미읽음 배지 + 실시간 토스트 (납품·메시지) */
-      const CNT = { nt_delivered: v => `주문 ${v.no} 결과물이 도착했어요`, nt_paid: v => `주문 ${v.no} 결제가 확인됐어요`, nt_msg: v => `새 메시지: ${v.t || ""}`, nt_failed: v => `주문 ${v.no} 결제 확인에 실패했어요` };
+      const CNT = { nt_refund: v => `주문 ${v.no} ${v.a}원이 환불됐어요`, nt_delivered: v => `주문 ${v.no} 결과물이 도착했어요`, nt_paid: v => `주문 ${v.no} 결제가 확인됐어요`, nt_msg: v => `새 메시지: ${v.t || ""}`, nt_failed: v => `주문 ${v.no} 결제 확인에 실패했어요` };
       const badge = n => { $$('#authSlot a[href="#orders"], #tabbar a[data-tab="orders"]').forEach(a => { let b = a.querySelector(".nbadge"); if (!n) { b && b.remove(); return; } if (!b) { b = document.createElement("i"); b.className = "nbadge"; a.appendChild(b); } b.textContent = n > 9 ? "9+" : n; }); };
       let unsubN = null;
       DB.auth.onChange(async p => {

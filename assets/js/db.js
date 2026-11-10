@@ -69,6 +69,11 @@
     async events(order_id) { const { data } = await sb.from("order_events").select("*").eq("order_id", order_id).order("created_at"); return data || []; },
     async all(status) { let q = sb.from("orders").select("*, client:profiles!orders_client_id_fkey(name,email,company), service:services(title)").order("created_at", { ascending: false }); if (status) q = q.eq("status", status); const { data, error } = await q; if (error) throw error; return data; },
     /* 서버 승인: Toss confirm → DB paid. 시크릿 키는 서버에만. */
+    async refund(order_id, reason, amount) {
+      const { data: s } = await sb.auth.getSession();
+      const r = await fetch(C.API_BASE + "/refund", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + (s.session && s.session.access_token) }, body: JSON.stringify({ order_id, reason, amount }) });
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.message || "refund failed"); return j;
+    },
     async confirmPayment(paymentKey, orderId, amount) {
       const { data: s } = await sb.auth.getSession();
       const r = await fetch(C.API_BASE + "/confirm", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + (s.session && s.session.access_token) }, body: JSON.stringify({ paymentKey, orderId, amount }) });

@@ -1,6 +1,6 @@
 {
   "cleanUrls": false,
-  "functions": { "api/confirm.js": { "maxDuration": 10 }, "api/translate.js": { "maxDuration": 10 } },
+  "functions": { "api/confirm.js": { "maxDuration": 10 }, "api/translate.js": { "maxDuration": 10 }, "api/refund.js": { "maxDuration": 10 } },
   "headers": [
     { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] }
   ]
