@@ -365,7 +365,7 @@
       ${kind === "login" ? `<button class="btn btn-dark" id="gLogin" style="width:100%">Continue with Google</button><p class="sm muted" style="margin-top:12px"><a class="link" href="index.html#apply">Apply as a creator →</a></p>` : `<a class="btn btn-accent" href="index.html#apply" style="width:100%">Apply as a creator</a><button class="btn btn-ghost" id="gOut" style="width:100%;margin-top:8px">Log out</button>`}</div>`;
     renderChrome();
   }
-  document.addEventListener("click", (e) => { if (e.target.closest("#gLogin")) DB.auth.signInGoogle(location.href.split("#")[0] + "#dash").catch((x) => toast(x.message)); if (e.target.closest("#gOut")) DB.auth.signOut().then(() => location.reload()); });
+  document.addEventListener("click", (e) => { if (e.target.closest("#gLogin")) DB.auth.signInGoogle(location.href.split("#")[0]).catch((x) => toast(x.message)); if (e.target.closest("#gOut")) DB.auth.signOut().then(() => location.reload()); });
 
   if (LIVE) {
     st.tasks = []; st.threads = {}; st.notifs = []; st.payouts = [];

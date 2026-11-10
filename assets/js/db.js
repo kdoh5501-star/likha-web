@@ -12,12 +12,15 @@
       const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"; s.onload = ok; s.onerror = () => no(new Error("supabase sdk")); document.head.appendChild(s);
     });
   }
+  /* OAuth 복귀 시 "#route#access_token=…" 처럼 해시가 겹치면 토큰 부분만 남겨 SDK가 읽을 수 있게 정리 */
+  try { const h = location.hash; const i = h.indexOf("#access_token="); if (i > 0) { const route = h.slice(0, i); sessionStorage.setItem("likha-route", route); history.replaceState(null, "", location.pathname + location.search + h.slice(i)); } } catch (e) {}
   async function init() {
     if (!live) return;
     await loadSdk();
     sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
     sb.auth.onAuthStateChange(async (ev, session) => { _profile = session ? await fetchProfile(session.user) : null; listeners.forEach((f) => f(_profile, ev)); });
     const { data } = await sb.auth.getSession(); if (data.session) _profile = await fetchProfile(data.session.user);
+    try { const r = sessionStorage.getItem("likha-route"); if (r) { sessionStorage.removeItem("likha-route"); if (!location.hash || /access_token/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search + r); } else if (/access_token/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   }
   async function fetchProfile(u) {
     const { data } = await sb.from("profiles").select("*").eq("id", u.id).maybeSingle();
