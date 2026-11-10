@@ -18,7 +18,13 @@
     if (!live) return;
     await loadSdk();
     sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-    sb.auth.onAuthStateChange(async (ev, session) => { _profile = session ? await fetchProfile(session.user) : null; listeners.forEach((f) => f(_profile, ev)); });
+    /* 주의: onAuthStateChange 콜백 안에서 supabase 쿼리를 await 하면 SDK 락 때문에 멈춘다 → setTimeout 으로 콜백 밖에서 처리 */
+    let lastEv = null;
+    sb.auth.onAuthStateChange((ev, session) => {
+      if (ev === "INITIAL_SESSION") return;            // init()의 getSession 경로에서 이미 처리
+      if (ev === "TOKEN_REFRESHED" && _profile) return;
+      setTimeout(async () => { _profile = session ? await fetchProfile(session.user) : null; lastEv = ev; listeners.forEach((f) => f(_profile, ev)); }, 0);
+    });
     const { data } = await sb.auth.getSession(); if (data.session) _profile = await fetchProfile(data.session.user);
     try { const r = sessionStorage.getItem("likha-route"); if (r) { sessionStorage.removeItem("likha-route"); if (!location.hash || /access_token/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search + r); } else if (/access_token/.test(location.hash)) history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   }
