@@ -58,3 +58,21 @@ update tasks t set paid_out = true where exists (select 1 from payout_items i wh
 
 -- RLS fix: staff could insert payouts but not payout_items (missing policy) -> 지급 생성 시 항목이 비는 버그
 drop policy if exists pyi_staff on payout_items; create policy pyi_staff on payout_items for all using (is_staff()) with check (is_staff());
+
+-- 맞춤 견적 요청 (index.html #request) — 로그인 없이도 접수 가능, 직원만 열람
+create table if not exists quote_requests (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid references profiles(id),
+  title text not null, cat text, vol text, due text, budget text, description text,
+  name text, phone text, email text,
+  status text not null default 'new',   -- new / contacted / converted / closed
+  created_at timestamptz not null default now()
+);
+alter table quote_requests enable row level security;
+drop policy if exists qr_ins on quote_requests; create policy qr_ins on quote_requests for insert with check (true);
+drop policy if exists qr_staff on quote_requests; create policy qr_staff on quote_requests for all using (is_staff());
+drop policy if exists qr_own on quote_requests; create policy qr_own on quote_requests for select using (client_id = auth.uid());
+create or replace function on_quote_request() returns trigger language plpgsql security definer set search_path = public as $$
+begin perform notify_staff('nt_quote', jsonb_build_object('t', left(new.title, 30)), '#quotes'); return new; end $$;
+drop trigger if exists quote_requests_notify on quote_requests;
+create trigger quote_requests_notify after insert on quote_requests for each row execute function on_quote_request();

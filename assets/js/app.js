@@ -313,6 +313,9 @@
     </div></div>`;
   }
   function vProposals() {
+    if (LIVE) return `<div class="wrap"><div class="wiz"><div class="notice ok">${icon(I.check, 18)}<span><b>견적 요청을 접수했어요.</b> 담당 PM이 확인 후 보통 2시간 안에(영업시간 기준) 연락처로 제안을 드립니다. 로그인 상태라면 사이트 알림으로도 알려드려요.</span></div>
+      <div class="cta2"><a href="#category-all"><div><b>기다리는 동안 서비스 둘러보기</b><span>바로 구매 가능한 패키지</span></div><span class="arr">${icon(I.arrow, 18)}</span></a><a href="#faq"><div><b>자주 묻는 질문</b><span>진행 방식 · 수정 · 환불</span></div><span class="arr">${icon(I.arrow, 18)}</span></a></div>
+      <button class="link" id="wzReset" style="align-self:flex-start">새 요청 작성</button></div></div>`;
     const a = st.wiz.a, pool = SV.filter(s => s.cat === a.cat);
     const picks = (pool.length ? pool : SV).slice(0, 3);
     const msgs = ["요청 내용 확인했어요. 비슷한 채널을 여러 번 작업해 봐서 톤을 빨리 맞출 수 있습니다. 첫 편은 시안으로 먼저 보여드릴게요.", "분량이 많으면 템플릿을 먼저 만들어 두고 진행하는 게 효율적이에요. 그 방식으로 일정 잡아 제안드립니다.", "레퍼런스 톤 기준으로 가격 책정했어요. 급하시면 빠른 납품 옵션도 가능합니다."];
@@ -534,7 +537,9 @@
     if (t.closest("#rvwSend")) { const o = curOrder(); o.review = { sc: +($("#stars").dataset.v || 5), t: $("#rvw").value.trim() || "만족합니다." }; if (LIVE) DB.orders.update(o.id, { rating: o.review.sc, review: o.review.t }).catch(e => toast(e.message)); save(); render(); return; }
     /* wizard */
     if (t.closest("#wzPrev")) { st.wiz.step--; render(); return; }
-    if (t.closest("#wzNext")) { const w = st.wiz, cur2 = WIZ[w.step]; if (cur2.type === "pick") { const v = document.querySelector("input[name=wz]:checked"); if (!v) { toast("하나를 골라 주세요"); return; } w.a[cur2.key] = v.value; } else { w.a.title = $("#wz-title").value.trim(); w.a.desc = $("#wz-desc").value.trim(); w.a.name = $("#wz-name").value.trim(); w.a.phone = $("#wz-phone").value.trim(); const ok = w.a.title && w.a.desc && w.a.phone; $("#wz-err").hidden = !!ok; if (!ok) return; st.props = true; toast("견적 요청을 올렸어요"); render(); return; } w.step++; render(); return; }
+    if (t.closest("#wzNext")) { const w = st.wiz, cur2 = WIZ[w.step]; if (cur2.type === "pick") { const v = document.querySelector("input[name=wz]:checked"); if (!v) { toast("하나를 골라 주세요"); return; } w.a[cur2.key] = v.value; } else { w.a.title = $("#wz-title").value.trim(); w.a.desc = $("#wz-desc").value.trim(); w.a.name = $("#wz-name").value.trim(); w.a.phone = $("#wz-phone").value.trim(); const ok = w.a.title && w.a.desc && w.a.phone; $("#wz-err").hidden = !!ok; if (!ok) return;
+        if (LIVE) { const a = w.a; DB.sb.from("quote_requests").insert({ client_id: DB.auth.user ? DB.auth.user.id : null, title: a.title, cat: a.cat, vol: a.vol, due: a.due, budget: a.budget, description: a.desc, name: a.name, phone: a.phone, email: st.user ? st.user.email : null }).then(({ error }) => { if (error) { toast("접수 실패: " + error.message); return; } st.props = true; st.wiz = { step: 0, a: {} }; toast("견적 요청을 접수했어요"); render(); }); return; }
+        st.props = true; toast("견적 요청을 올렸어요"); render(); return; } w.step++; render(); return; }
     if (t.closest("#wzReset")) { st.wiz = { step: 0, a: {} }; st.props = null; render(); return; }
     if (t.closest("[data-upload]")) { toast("Upload opens the file picker in the live app"); return; }
     if (t.closest("#newSvc")) { toast("Service form opens in the live app"); return; }

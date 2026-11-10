@@ -244,3 +244,8 @@ drop policy if exists st_src_rw on storage.objects; create policy st_src_rw on s
 
 -- ---------- seed: make yourself admin after first Google login ----------
 -- update profiles set role = 'admin' where email = 'yko0107@gmail.com';
+
+-- ---------- v2 additions (see supabase/migrate_002_deliverables_notify.sql for the incremental version) ----------
+alter table orders add column if not exists deliverables jsonb;
+alter table tasks  add column if not exists paid_out boolean not null default false;
+-- 신규 프로젝트는 schema.sql 실행 후 migrate_002_deliverables_notify.sql 도 실행할 것 (알림 트리거 · 견적요청 · 정산 플래그).

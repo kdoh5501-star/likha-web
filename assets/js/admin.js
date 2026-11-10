@@ -26,19 +26,19 @@
   async function load() {
     if (!LIVE) return demoData();
     const [o, t, c, n, py] = await Promise.all([DB.orders.all(), DB.tasks.all(), DB.tasks.creators(), DB.notifs.list(), DB.sb.from("payouts").select("*, creator:profiles!payouts_creator_id_fkey(name, payout_method, payout_account)").order("created_at", { ascending: false }).then((r) => r.data || [])]);
-    st.orders = o; st.tasks = t; st.creators = c; st.notifs = n; st.payouts = py;
+    st.orders = o; st.tasks = t; st.creators = c; st.notifs = n; st.payouts = py; st.quotes = (await DB.sb.from("quote_requests").select("*").order("created_at", { ascending: false }).limit(100)).data || [];
   }
-  const NT = { nt_new_order: (v) => "새 주문 " + v.no, nt_review: (v) => "검수 요청 " + v.no, nt_msg: (v) => "메시지: " + v.t, nt_paid: (v) => "결제 " + v.no, nt_claimed: (v) => "크리에이터가 작업 수락 " + v.no, nt_req: (v) => "고객 요구사항 제출 " + v.no, nt_client_rev: (v) => "고객 수정 요청 " + v.no, nt_confirmed: (v) => "고객 구매 확정 " + v.no, nt_failed: (v) => "결제 실패 " + v.no };
+  const NT = { nt_new_order: (v) => "새 주문 " + v.no, nt_review: (v) => "검수 요청 " + v.no, nt_msg: (v) => "메시지: " + v.t, nt_paid: (v) => "결제 " + v.no, nt_claimed: (v) => "크리에이터가 작업 수락 " + v.no, nt_req: (v) => "고객 요구사항 제출 " + v.no, nt_client_rev: (v) => "고객 수정 요청 " + v.no, nt_confirmed: (v) => "고객 구매 확정 " + v.no, nt_failed: (v) => "결제 실패 " + v.no, nt_quote: (v) => "새 견적 요청: " + v.t };
 
   /* ---------- chrome ---------- */
-  const NAV = [["orders", "주문"], ["tasks", "작업"], ["creators", "크리에이터"], ["payouts", "정산"], ["msgs", "메시지"]];
+  const NAV = [["orders", "주문"], ["quotes", "견적 요청"], ["tasks", "작업"], ["creators", "크리에이터"], ["payouts", "정산"], ["msgs", "메시지"]];
   function chrome() {
     const cur = (location.hash.slice(1) || "orders").split("/")[0];
     const on = (k) => (k === cur || (k === "orders" && cur === "order") || (k === "tasks" && cur === "task") ? " on" : "");
-    const cnt = { orders: st.orders.filter((o) => ["paid", "req"].includes(o.status)).length, tasks: st.tasks.filter((t) => t.status === "review").length };
-    const items = NAV.map(([k, l]) => `<a href="#${k}" class="${on(k)}">${l}${cnt[k] ? `<span class="n">${cnt[k]}</span>` : ""}</a>`).join("");
+    const cnt = { orders: st.orders.filter((o) => ["paid", "req"].includes(o.status)).length, tasks: st.tasks.filter((t) => t.status === "review").length, quotes: (st.quotes || []).filter((q) => q.status === "new").length };
+    const item = ([k, l]) => `<a href="#${k}" class="${on(k)}">${l}${cnt[k] ? `<span class="n">${cnt[k]}</span>` : ""}</a>`; const items = NAV.map(item).join("");
     $("#side").innerHTML = items + `<div class="sec" style="margin-top:14px">LIKHA</div><a href="index.html">고객 사이트</a><a href="creator.html">크리에이터 센터</a>`;
-    $("#tab").innerHTML = items;
+    $("#tab").innerHTML = NAV.filter(([k]) => k !== "quotes").map(item).join("");
     $("#avatar").textContent = st.me ? (st.me.name || "PM").slice(0, 2).toUpperCase() : "PM";
     const un = st.notifs.filter((n) => !n.read).length; $("#bellDot").hidden = !un; $("#bellDot").textContent = un;
     $("#ndrop").innerHTML = `<div class="hd"><span>알림</span><button type="button" id="readAll">모두 읽음</button></div>` + (st.notifs.length ? `<ul>${st.notifs.slice(0, 15).map((n) => `<li class="${n.read ? "" : "un"}" data-go="${esc(n.link || "")}" data-id="${n.id}"><i></i><div>${esc((NT[n.kind] || ((v) => n.kind))(n.vars || {}))}<span>${when(n.created_at)}</span></div></li>`).join("")}</ul>` : `<div class="empty">알림 없음</div>`);
@@ -105,6 +105,17 @@
       <div class="panel led"><span class="scrollhint">← 좌우로 스크롤 →</span><table><thead><tr><th>이름</th><th>레벨</th><th>할 수 있는 작업</th><th>툴</th><th class="n">주당</th><th class="n">납품</th><th class="n">1회 통과</th><th class="n">기한</th><th></th></tr></thead><tbody>
       ${st.creators.map((c) => `<tr><td><b>${esc(c.name)}</b><br><span class="sm muted">${esc(c.city || "")} ${c.email ? "· " + esc(c.email) : ""}</span></td><td><select class="sel" data-lvl="${c.id}">${[1, 2, 3, 4].map((n) => `<option ${c.level === n ? "selected" : ""}>${n}</option>`).join("")}</select></td><td>${(c.skills || []).map((k) => `<span class="pill">${TYPE_N[k]}</span>`).join(" ")}</td><td class="sm">${(c.tools || []).join(", ")}</td><td class="n">${c.capacity}</td><td class="n">${c.deliveries}</td><td class="n">${c.first_pass}%</td><td class="n">${c.ontime}%</td><td><a class="link" href="#msgs/pm:${c.id}">채팅</a></td></tr>`).join("")}</tbody></table></div>`;
   }
+  const QL = { vol: { one: "1회성", m10: "월 10~30편", m30: "월 30~100편", m100: "월 100편+" }, due: { d3: "3일 이내", w1: "1주 이내", w2: "2주 이내", flex: "협의" }, budget: { b1: "~30만", b2: "30~100만", b3: "100~300만", b4: "300만+", b0: "미정" }, cat: { shorts: "숏폼", long: "롱폼", thumb: "썸네일", motion: "모션", ai: "AI", sub: "자막" } };
+  const QST = { new: ["신규", "acc"], contacted: ["연락함", "brand"], converted: ["주문 전환", "ok"], closed: ["종료", ""] };
+  function vQuotes() {
+    const qs = st.quotes || []; const q = (k, v) => (QL[k] && QL[k][v]) || v || "-";
+    return `<div class="ph"><div><h1>견적 요청</h1><p>고객이 「맞춤 견적」으로 올린 요청입니다. 연락 후 상태를 바꾸고, 주문으로 이어지면 「주문 전환」.</p></div></div>${demoBar()}
+      ${qs.map((r) => `<div class="row" style="align-items:flex-start"><div style="min-width:0"><div class="t"><span class="pill ${QST[r.status][1]}">${QST[r.status][0]}</span> ${esc(r.title)}</div>
+        <div class="sub">${q("cat", r.cat)} · ${q("vol", r.vol)} · 납기 ${q("due", r.due)} · 예산 ${q("budget", r.budget)} · ${when(r.created_at)}</div>
+        <div class="sub" style="margin-top:6px;white-space:pre-wrap;color:var(--fg-2)">${esc(r.description || "")}</div>
+        <div class="sub" style="margin-top:6px"><b>${esc(r.name || "-")}</b> · <a class="link" href="tel:${esc(r.phone || "")}">${esc(r.phone || "")}</a>${r.email ? ` · <a class="link" href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ""}</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><select class="sel" data-qst="${r.id}" style="height:34px;font-size:13px">${Object.keys(QST).map((k) => `<option value="${k}" ${k === r.status ? "selected" : ""}>${QST[k][0]}</option>`).join("")}</select></div></div>`).join("") || `<div class="empty">아직 견적 요청이 없습니다.</div>`}`;
+  }
   function vPayouts() {
     const done = st.tasks.filter((t) => t.status === "done" && !t.paid_out); const by = {};
     done.forEach((t) => { const k = t.creator_id || "?"; by[k] = by[k] || { c: t.creator || st.creators.find((c) => c.id === k) || { name: k }, items: [], sum: 0 }; by[k].items.push(t); by[k].sum += t.fee_php + (t.bonus_php || 0); });
@@ -133,7 +144,7 @@
   /* ---------- router ---------- */
   function render() {
     const parts = (location.hash.slice(1) || "orders").split("/"), v = parts[0], a = parts.slice(1).join("/");
-    let html = v === "order" ? vOrder(a) : v === "tasks" ? vTasks(a) : v === "task" ? vTask(a) : v === "creators" ? vCreators() : v === "payouts" ? vPayouts() : v === "msgs" ? vMsgs(a) : vOrders(a);
+    let html = v === "order" ? vOrder(a) : v === "tasks" ? vTasks(a) : v === "task" ? vTask(a) : v === "creators" ? vCreators() : v === "payouts" ? vPayouts() : v === "quotes" ? vQuotes() : v === "msgs" ? vMsgs(a) : vOrders(a);
     $("#main").innerHTML = html; chrome(); window.scrollTo(0, 0);
     if (v === "msgs" && LIVE) mountMsgs(a);
   }
@@ -162,6 +173,7 @@
     if (e.target.closest("#gLogin")) { DB.auth.signInGoogle(location.href.split("#")[0]).catch((x) => toast(x.message)); return; }
   });
   document.addEventListener("change", async (e) => { const l = e.target.closest("[data-lvl]"); if (l) { const c = st.creators.find((x) => x.id === l.dataset.lvl); c.level = +l.value; if (LIVE) await DB.sb.from("profiles").update({ level: c.level }).eq("id", c.id); toast(c.name + " → Lv." + c.level); }
+    const qs = e.target.closest("[data-qst]"); if (qs) { if (LIVE) { const { error } = await DB.sb.from("quote_requests").update({ status: qs.value }).eq("id", qs.dataset.qst); if (error) return toast(error.message); } const r = (st.quotes || []).find((x) => x.id === qs.dataset.qst); if (r) r.status = qs.value; toast("상태 변경"); render(); return; }
     if (e.target.matches('#taskF select[name="type"]')) { const f = e.target.form; if (f && f.fee && S.TYPES[e.target.value]) f.fee.value = S.TYPES[e.target.value].fee; } });
   document.addEventListener("submit", async (e) => {
     const f = e.target; e.preventDefault();
