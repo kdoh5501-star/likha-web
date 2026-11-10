@@ -28,7 +28,7 @@
     const [o, t, c, n] = await Promise.all([DB.orders.all(), DB.tasks.all(), DB.tasks.creators(), DB.notifs.list()]);
     st.orders = o; st.tasks = t; st.creators = c; st.notifs = n;
   }
-  const NT = { nt_new_order: (v) => "새 주문 " + v.no, nt_review: (v) => "검수 요청 " + v.no, nt_msg: (v) => "메시지: " + v.t, nt_paid: (v) => "결제 " + v.no };
+  const NT = { nt_new_order: (v) => "새 주문 " + v.no, nt_review: (v) => "검수 요청 " + v.no, nt_msg: (v) => "메시지: " + v.t, nt_paid: (v) => "결제 " + v.no, nt_claimed: (v) => "크리에이터가 작업 수락 " + v.no, nt_req: (v) => "고객 요구사항 제출 " + v.no, nt_client_rev: (v) => "고객 수정 요청 " + v.no, nt_confirmed: (v) => "고객 구매 확정 " + v.no, nt_failed: (v) => "결제 실패 " + v.no };
 
   /* ---------- chrome ---------- */
   const NAV = [["orders", "주문"], ["tasks", "작업"], ["creators", "크리에이터"], ["payouts", "정산"], ["msgs", "메시지"]];
@@ -56,7 +56,7 @@
   function vOrder(id) {
     const o = st.orders.find((x) => x.id === id); if (!o) return `<div class="empty">주문 없음</div>`;
     const s = svc(o.service_id), p = (s.pk || []).find((x) => x.n === o.package_code) || {}, tk = st.tasks.filter((t) => t.order_id === o.id), req = o.requirements || {};
-    const ctask = S.TYPES[s.task || "short"] ? (s.task || "short") : "short";
+    const CAT2TASK = { shorts: "short", long: "long", thumb: "thumb", motion: "motion", ai: "ai", sub: "sub" }; const ctask = S.TYPES[s.task] ? s.task : (S.TYPES[CAT2TASK[s.cat]] ? CAT2TASK[s.cat] : "short");
     return `<div class="ph"><div><a class="link" href="#orders">← 주문</a><h1 style="margin-top:6px">${esc(s.title)} · ${esc(o.package_code)}</h1><p>${o.order_no} · <span class="pill ${OST[o.status][1]}">${OST[o.status][0]}</span> · ${won(o.amount)} · ${esc((o.client && (o.client.company || o.client.name)) || "")}</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${o.status === "review" ? `<button class="btn btn-accent" data-ost="delivered" data-id="${o.id}">고객에게 납품</button>` : ""}${o.status === "req" || o.status === "paid" ? `<button class="btn btn-line" data-ost="work" data-id="${o.id}">작업 중으로</button>` : ""}<a class="btn btn-line" href="#msgs/order:${o.id}">고객 채팅</a></div></div>
       <div class="tdet"><div>
@@ -138,7 +138,7 @@
   function gate(msg) { $("#main").innerHTML = `<div class="panel" style="max-width:440px;margin:60px auto;text-align:center"><h2 style="font-size:22px;font-weight:800">PM 관리</h2><p class="muted" style="margin:8px 0 18px">${msg}</p><button class="btn btn-dark" id="gLogin" style="width:100%">Google로 로그인</button></div>`; chrome(); }
 
   /* ---------- actions ---------- */
-  async function setOrder(id, status) { const o = st.orders.find((x) => x.id === id); if (!o) return; if (LIVE) { await DB.orders.update(id, { status, ...(status === "delivered" ? { delivered_at: new Date().toISOString() } : {}) }); await DB.orders.event(id, status, {}); if (status === "delivered") DB.notifs.push(o.client_id, "nt_delivered", { no: o.order_no }, "#order-" + id); await load(); } else o.status = status; toast("주문 상태: " + OST[status][0]); render(); }
+  async function setOrder(id, status) { const o = st.orders.find((x) => x.id === id); if (!o) return; if (LIVE) { const dels = status === "delivered" ? st.tasks.filter((t) => t.order_id === id && ["delivered", "done"].includes(t.status) && t.deliverable && t.deliverable.link).map((t) => ({ task_no: t.task_no, type: t.type, link: t.deliverable.link, note: t.deliverable.note || "" })) : null; await DB.orders.update(id, { status, ...(status === "delivered" ? { delivered_at: new Date().toISOString(), deliverables: dels } : {}) }); await DB.orders.event(id, status, {}); if (status === "delivered") DB.notifs.push(o.client_id, "nt_delivered", { no: o.order_no }, "#order-" + id); await load(); } else o.status = status; toast("주문 상태: " + OST[status][0]); render(); }
   async function setTask(id, status, extra) {
     const t = st.tasks.find((x) => x.id === id); if (!t) return;
     const patch = { status, ...(extra || {}) }; if (status === "delivered") patch.passed_at = new Date().toISOString(); if (status === "done") patch.done_at = new Date().toISOString(); if (status === "revision") patch.rev = (t.rev || 0) + 1;
@@ -158,7 +158,8 @@
     const po = e.target.closest("[data-payout]"); if (po) { const items = st.tasks.filter((t) => t.status === "done" && !t.paid_out && (t.creator_id || "?") === po.dataset.payout); if (LIVE) { const d = new Date(); const { data: pay, error } = await DB.sb.from("payouts").insert({ creator_id: po.dataset.payout, period_start: new Date(d.getFullYear(), d.getMonth(), d.getDate() < 15 ? 1 : 16).toISOString().slice(0, 10), period_end: d.toISOString().slice(0, 10), amount_php: +po.dataset.sum, status: "scheduled" }).select().single(); if (error) return toast(error.message); await DB.sb.from("payout_items").insert(items.map((t) => ({ payout_id: pay.id, task_id: t.id, amount_php: t.fee_php + (t.bonus_php || 0) }))); await DB.notifs.push(po.dataset.payout, "nt_pay", { a: (+po.dataset.sum).toLocaleString() }, "#earn"); await load(); } else items.forEach((t) => (t.paid_out = true)); toast("지급 건 생성: " + php(+po.dataset.sum)); render(); return; }
     if (e.target.closest("#gLogin")) { DB.auth.signInGoogle(location.href.split("#")[0]).catch((x) => toast(x.message)); return; }
   });
-  document.addEventListener("change", async (e) => { const l = e.target.closest("[data-lvl]"); if (l) { const c = st.creators.find((x) => x.id === l.dataset.lvl); c.level = +l.value; if (LIVE) await DB.sb.from("profiles").update({ level: c.level }).eq("id", c.id); toast(c.name + " → Lv." + c.level); } });
+  document.addEventListener("change", async (e) => { const l = e.target.closest("[data-lvl]"); if (l) { const c = st.creators.find((x) => x.id === l.dataset.lvl); c.level = +l.value; if (LIVE) await DB.sb.from("profiles").update({ level: c.level }).eq("id", c.id); toast(c.name + " → Lv." + c.level); }
+    if (e.target.matches('#taskF select[name="type"]')) { const f = e.target.form; if (f && f.fee && S.TYPES[e.target.value]) f.fee.value = S.TYPES[e.target.value].fee; } });
   document.addEventListener("submit", async (e) => {
     const f = e.target; e.preventDefault();
     if (f.id === "taskF") {

@@ -292,7 +292,12 @@
 
   /* ---------- router ---------- */
   function render() {
-    const parts = (location.hash.slice(1) || "dash").split("/"), v = parts[0], a = parts.slice(1).join("/");
+    const parts = (location.hash.slice(1) || "dash").split("/"), v = parts[0]; let a = parts.slice(1).join("/");
+    if (v === "msgs" && a.startsWith("task:") && !st.threads[a]) {
+      const tid = a.slice(5), k = Object.keys(st.threads).find((x) => st.threads[x].task === tid);
+      if (k) { location.replace("#msgs/" + k); return; }
+      if (LIVE) { const tk = st.tasks.find((x) => x.id === tid); if (tk) { DB.threads.ensure("task", { task_id: tid }, [DB.auth.user.id, tk.pm].filter(Boolean)).then(() => syncLive()).then(() => render()).catch(() => { }); } }
+    }
     let html;
     if (v === "board") html = vBoard(a); else if (v === "tasks") html = vTasks(a); else if (v === "task") html = vTask(a);
     else if (v === "msgs") html = vMsgs(a); else if (v === "earn") html = vEarn(); else if (v === "profile") html = vProfile();

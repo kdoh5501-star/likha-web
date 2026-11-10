@@ -20,7 +20,7 @@
     const s = D.SV.find(x => x.id === o.service_id) || D.SV[0]; const pi = Math.max(0, s.pk.findIndex(p => p.n === o.package_code));
     const req = o.requirements || {}; const d = new Date(o.created_at);
     return { id: o.id, orderId: o.order_no, sid: s.id, pi, optNames: o.options || [], qty: o.qty, amount: o.amount, status: o.status === "pending_payment" ? "paid" : o.status, revs: (events || []).filter(e => e.kind === "revision").length,
-      req: req.text || "", review: o.rating ? { sc: o.rating, t: o.review } : null, method: "toss", paymentKey: o.payment && o.payment.paymentKey, receiptUrl: o.payment && o.payment.receiptUrl,
+      req: req.text || "", deliverables: o.deliverables || [], review: o.rating ? { sc: o.rating, t: o.review } : null, method: "toss", paymentKey: o.payment && o.payment.paymentKey, receiptUrl: o.payment && o.payment.receiptUrl,
       date: d.toLocaleDateString("ko-KR"), due: o.due_at ? new Date(o.due_at).toLocaleDateString("ko-KR") : "-",
       msgs: (msgs || []).map(m => ({ me: m.sender_id === (DB.auth.user || {}).id, w: m.sender && m.sender.name, t: (m.tr && m.tr.ko) || m.text, at: m.created_at })) };
   }
@@ -262,10 +262,10 @@
       <div class="field"><label for="rq-text">요청사항</label><textarea id="rq-text" placeholder="예: 첫 3초에 제품 클로즈업, 자막은 노란 박스 스타일, BGM은 밝게. 참고 영상 링크도 적어 주세요."></textarea></div>
       <label class="filelbl"><input type="file" id="rq-file" multiple><b>원본 · 레퍼런스 파일 업로드</b><span>영상, 이미지, 문서 · 대용량은 클라우드 링크로</span></label><ul class="flist" id="rq-list"></ul>
       <p class="err" id="rq-err" hidden>요청사항을 적어 주세요.</p><button class="btn btn-accent btn-lg" id="rqSend">요구사항 제출하기</button></div>`;
-    else if (o.status === "work") action = `<div class="panel"><h2>크리에이터가 작업 중이에요</h2><p style="color:var(--fg-2)">${esc(c.name)}님이 편집하고 있어요. 예상 납품일은 <b>${o.due}</b>입니다.${o.revs ? ` (수정 ${o.revs}회차 반영 중)` : ""}</p><button class="btn btn-line" data-adv="${o.id}">데모: 다음 단계로</button></div>`;
-    else if (o.status === "review") action = `<div class="panel"><h2>한국 PM이 검수 중이에요</h2><ul class="cklist"><li class="y"><i>✓</i>요청사항 반영</li><li class="y"><i>✓</i>자막 오탈자·맞춤법</li><li class="n"><i></i>음량·BGM 밸런스</li><li class="n"><i></i>화면 비율·해상도</li><li class="n"><i></i>원본 노출·저작권 소재</li></ul><button class="btn btn-line" data-adv="${o.id}">데모: 검수 완료</button></div>`;
+    else if (o.status === "work") action = `<div class="panel"><h2>크리에이터가 작업 중이에요</h2><p style="color:var(--fg-2)">${esc(c.name)}님이 편집하고 있어요. 예상 납품일은 <b>${o.due}</b>입니다.${o.revs ? ` (수정 ${o.revs}회차 반영 중)` : ""}</p>${LIVE ? "" : `<button class="btn btn-line" data-adv="${o.id}">데모: 다음 단계로</button>`}</div>`;
+    else if (o.status === "review") action = `<div class="panel"><h2>한국 PM이 검수 중이에요</h2><ul class="cklist"><li class="y"><i>✓</i>요청사항 반영</li><li class="y"><i>✓</i>자막 오탈자·맞춤법</li><li class="n"><i></i>음량·BGM 밸런스</li><li class="n"><i></i>화면 비율·해상도</li><li class="n"><i></i>원본 노출·저작권 소재</li></ul>${LIVE ? "" : `<button class="btn btn-line" data-adv="${o.id}">데모: 검수 완료</button>`}</div>`;
     else if (o.status === "delivered") action = `<div class="panel"><h2>결과물이 도착했어요</h2>
-      <div class="file"><span class="fi">MP4</span><div style="min-width:0"><b>${esc(s.title.slice(0, 16))}_최종본_v${o.revs + 1}.mp4</b><div class="sm muted">PM 검수 완료 · 예시 파일</div></div></div>
+      ${LIVE ? ((o.deliverables && o.deliverables.length) ? o.deliverables.map(d => `<a class="file" href="${esc(d.link)}" target="_blank" rel="noopener"><span class="fi">${esc((d.type || "FILE").toUpperCase().slice(0, 5))}</span><div style="min-width:0"><b style="overflow-wrap:anywhere">${esc(d.link.replace(/^https?:\/\//, ""))}</b><div class="sm muted">PM 검수 완료${d.note ? " · " + esc(d.note) : ""}</div></div></a>`).join("") : `<div class="notice info">${icon(I.doc, 18)}<span>결과물 링크는 메시지로 전달됩니다. 보이지 않으면 PM에게 문의해 주세요.</span></div>`) : `<div class="file"><span class="fi">MP4</span><div style="min-width:0"><b>${esc(s.title.slice(0, 16))}_최종본_v${o.revs + 1}.mp4</b><div class="sm muted">PM 검수 완료 · 예시 파일</div></div></div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-accent" id="confirmBtn">구매 확정</button><button class="btn btn-line" id="revBtn" ${left <= 0 ? "disabled" : ""}>수정 요청 (남은 ${Math.max(0, left)}회)</button></div>
       <div id="revForm" hidden class="field"><label for="rv-text">수정할 내용</label><textarea id="rv-text" placeholder="예: 0:12 자막 색을 흰색으로, 마지막 컷 2초 줄이기"></textarea><button class="btn btn-brand" id="revSend" style="align-self:flex-start">수정 요청 보내기</button></div>
       <p class="xs muted">납품 후 7일 안에 확정하지 않으면 자동으로 구매 확정됩니다.</p></div>`;
@@ -529,7 +529,7 @@
     if (t.closest("#rqSend")) { const v = $("#rq-text").value.trim(); if (!v) { $("#rq-err").hidden = false; $("#rq-text").focus(); return; } const o = curOrder(); o.req = v; const f = $("#rq-file").files; if (LIVE) { (async () => { const files = []; for (const file of f) { try { files.push(await DB.files.upload("sources", file, o.id)); } catch (x) { } } await DB.orders.update(o.id, { status: "req", requirements: { text: v, files } }); await DB.orders.event(o.id, "req", { files: files.length }); })().catch(e => toast(e.message)); } o.msgs.push({ me: true, t: "요구사항을 제출했어요" + (f.length ? ` (파일 ${f.length}개)` : "") }); o.status = "work"; o.msgs.push({ w: cre(svc(o.sid).cr).name, t: "Got it! I'll start editing now. 작업 시작할게요!" }); save(); render(); return; }
     if (t.closest("#revBtn")) { $("#revForm").hidden = false; $("#rv-text").focus(); return; }
     if (t.closest("#revSend")) { const v = $("#rv-text").value.trim(); if (!v) { $("#rv-text").focus(); return; } const o = curOrder(); o.revs++; o.status = "work"; o.msgs.push({ me: true, t: "수정 요청: " + v }); if (LIVE) { DB.orders.update(o.id, { status: "work" }).then(() => DB.orders.event(o.id, "revision", { text: v })).then(() => o.threadId && DB.threads.send(o.threadId, "수정 요청: " + v, "ko")).catch(e => toast(e.message)); } save(); render(); toast("수정 요청을 보냈어요"); return; }
-    if (t.closest("#confirmBtn")) { const o = curOrder(); o.status = "done"; if (LIVE) DB.orders.update(o.id, { status: "done", confirmed_at: new Date().toISOString() }).catch(e => toast(e.message)); save(); render(); toast("구매 확정했어요"); return; }
+    if (t.closest("#confirmBtn")) { const o = curOrder(); o.status = "done"; if (LIVE) DB.orders.update(o.id, { status: "done", confirmed_at: new Date().toISOString() }).then(() => DB.orders.event(o.id, "confirmed", {})).catch(e => toast(e.message)); save(); render(); toast("구매 확정했어요"); return; }
     const sb = t.closest("[data-star]"); if (sb) { const n = +sb.dataset.star; $$("#stars button").forEach(b => b.classList.toggle("on", +b.dataset.star <= n)); $("#stars").dataset.v = n; return; }
     if (t.closest("#rvwSend")) { const o = curOrder(); o.review = { sc: +($("#stars").dataset.v || 5), t: $("#rvw").value.trim() || "만족합니다." }; if (LIVE) DB.orders.update(o.id, { rating: o.review.sc, review: o.review.t }).catch(e => toast(e.message)); save(); render(); return; }
     /* wizard */
@@ -577,6 +577,16 @@
         if (st.user) { try { const nx = JSON.parse(sessionStorage.getItem("likha-next") || "null"); if (nx) { sessionStorage.removeItem("likha-next"); if (nx.cart) { st.cart = nx.cart; location.hash = "checkout"; } else if (nx.hash) location.hash = nx.hash; } } catch (x) { } }
         if (st.user) { try { const ap = JSON.parse(sessionStorage.getItem("likha-apply") || "null"); if (ap && !p.onboarded) { sessionStorage.removeItem("likha-apply"); await DB.auth.updateProfile(ap); location.href = "creator.html#profile"; return; } } catch (x) { } } };
       DB.auth.onChange(apply); apply(DB.auth.user);
+      /* 고객 알림: 미읽음 배지 + 실시간 토스트 (납품·메시지) */
+      const CNT = { nt_delivered: v => `주문 ${v.no} 결과물이 도착했어요`, nt_paid: v => `주문 ${v.no} 결제가 확인됐어요`, nt_msg: v => `새 메시지: ${v.t || ""}`, nt_failed: v => `주문 ${v.no} 결제 확인에 실패했어요` };
+      const badge = n => { $$('#authSlot a[href="#orders"], #tabbar a[data-tab="orders"]').forEach(a => { let b = a.querySelector(".nbadge"); if (!n) { b && b.remove(); return; } if (!b) { b = document.createElement("i"); b.className = "nbadge"; a.appendChild(b); } b.textContent = n > 9 ? "9+" : n; }); };
+      let unsubN = null;
+      DB.auth.onChange(async p => {
+        if (unsubN) { unsubN(); unsubN = null; } if (!p) { badge(0); return; }
+        try { const list = await DB.notifs.list(); badge(list.filter(x => !x.read).length); } catch (x) { }
+        unsubN = DB.notifs.subscribe(n => { const f = CNT[n.kind]; if (f) toast(f(n.vars || {})); badge((+($(".nbadge") || {}).textContent || 0) + 1); if (n.kind === "nt_delivered" || n.kind === "nt_msg") loadOrdersLive().then(() => { if (location.hash.startsWith("#order")) { render._od = null; render(); } }); });
+      });
+      addEventListener("hashchange", () => { if (location.hash === "#orders" && DB.auth.user) { DB.notifs.readAll().then(() => badge(0)).catch(() => { }); } });
     });
   }
   render();
