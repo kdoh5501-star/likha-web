@@ -170,7 +170,7 @@
       <div class="tdet"><div>
         ${tk.status === "revision" ? `<div class="panel"><h3>${t("revision_from_pm")} <span class="sm muted">${t("rev_count", { n: rev, max })}</span></h3><div class="revbox">${esc(tk.revNotes)}</div><p class="sub" style="margin:10px 0 0">${t("rev_extra")}</p></div>` : ""}
         <div class="panel"><h3>${t("brief")}</h3><p class="sub">${t("brief_note")}</p><div class="brief">${esc(tk.brief)}</div></div>
-        <div class="panel"><h3>${t("files")}</h3>${tk.files.length ? `<ul class="flist">${tk.files.map((x) => `<li>${I.file}${esc(x)}<span class="dl">↓</span></li>`).join("")}</ul>` : `<span class="muted">—</span>`}
+        <div class="panel"><h3>${t("files")}</h3>${tk.files.length ? `<ul class="flist">${tk.files.map((x) => { const m = /^(.*?)\s*\|\s*(https?:\/\/\S+)$/.exec(x); const name = m ? m[1] : x, url = m ? m[2] : (/^https?:\/\//.test(x) ? x : null); return url ? `<li><a href="${esc(url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">${I.file}<span style="overflow-wrap:anywhere">${esc(name)}</span></a><span class="dl">↓</span></li>` : `<li>${I.file}${esc(name)}</li>`; }).join("")}</ul>` : `<span class="muted">—</span>`}
           ${tk.refs.length ? `<h3 style="margin-top:16px">${t("refs")}</h3><ul class="flist">${tk.refs.map((x) => `<li>${I.file}${esc(x)}<span class="dl">↓</span></li>`).join("")}</ul>` : ""}</div>
         <div class="panel"><h3>${t("specs")}</h3><div class="brief" style="font-size:14px">${esc(tp.specs)}</div></div>
       </div><div class="sticky-act">
