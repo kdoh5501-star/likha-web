@@ -216,7 +216,8 @@
     nt_offer: { ko: "새 작업 제안: {t}", en: "New offer: {t}", tl: "Bagong alok: {t}" },
     nt_rev: { ko: "수정 요청: {t}", en: "Revision requested: {t}", tl: "May revision: {t}" },
     nt_pass: { ko: "검수 통과: {t}", en: "Passed review: {t}", tl: "Pasado sa review: {t}" },
-    nt_pay: { ko: "₱{a} 지급 완료 (GCash)", en: "₱{a} paid to GCash", tl: "₱{a} naipadala sa GCash" },
+    nt_paid_out: { ko: "₱{a} 지급 완료 — GCash/계좌를 확인하세요", en: "₱{a} paid out — check your GCash/bank", tl: "₱{a} naibayad na — tingnan ang GCash/bank mo" },
+    nt_pay: { ko: "₱{a} 지급 예정 — 다음 정산일에 송금됩니다", en: "₱{a} scheduled — sent on the next payout day", tl: "₱{a} naka-schedule — ipapadala sa susunod na payout" },
     nt_msg: { ko: "PM 메시지: {t}", en: "PM message: {t}", tl: "Mensahe ng PM: {t}" },
     nt_due: { ko: "오늘 마감: {t}", en: "Due today: {t}", tl: "Deadline ngayon: {t}" }
   };

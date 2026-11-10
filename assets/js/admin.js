@@ -25,8 +25,8 @@
   }
   async function load() {
     if (!LIVE) return demoData();
-    const [o, t, c, n] = await Promise.all([DB.orders.all(), DB.tasks.all(), DB.tasks.creators(), DB.notifs.list()]);
-    st.orders = o; st.tasks = t; st.creators = c; st.notifs = n;
+    const [o, t, c, n, py] = await Promise.all([DB.orders.all(), DB.tasks.all(), DB.tasks.creators(), DB.notifs.list(), DB.sb.from("payouts").select("*, creator:profiles!payouts_creator_id_fkey(name, payout_method, payout_account)").order("created_at", { ascending: false }).then((r) => r.data || [])]);
+    st.orders = o; st.tasks = t; st.creators = c; st.notifs = n; st.payouts = py;
   }
   const NT = { nt_new_order: (v) => "새 주문 " + v.no, nt_review: (v) => "검수 요청 " + v.no, nt_msg: (v) => "메시지: " + v.t, nt_paid: (v) => "결제 " + v.no, nt_claimed: (v) => "크리에이터가 작업 수락 " + v.no, nt_req: (v) => "고객 요구사항 제출 " + v.no, nt_client_rev: (v) => "고객 수정 요청 " + v.no, nt_confirmed: (v) => "고객 구매 확정 " + v.no, nt_failed: (v) => "결제 실패 " + v.no };
 
@@ -111,6 +111,8 @@
     const d = new Date(), nxt = d.getDate() < 15 ? "15일" : "30일";
     return `<div class="ph"><div><h1>정산</h1><p>구매 확정된 작업을 크리에이터별로 묶어 15일·30일에 지급합니다. 다음 지급: ${d.getMonth() + 1}월 ${nxt}</p></div></div>${demoBar()}
       ${Object.keys(by).map((k) => `<div class="panel" style="margin-bottom:12px"><h3>${esc(by[k].c.name)} <span>${php(by[k].sum)} <button class="btn btn-brand" style="height:34px;font-size:13px;margin-left:8px" data-payout="${k}" data-sum="${by[k].sum}">지급 생성</button></span></h3><div class="led"><table><thead><tr><th>작업</th><th>완료</th><th class="n">기본</th><th class="n">보너스</th><th class="n">합계</th></tr></thead><tbody>${by[k].items.map((t) => `<tr><td>${t.task_no} · ${TYPE_N[t.type]} · ${esc(t.client_alias)}</td><td>${when(t.done_at)}</td><td class="n">${php(t.fee_php)}</td><td class="n">${php(t.bonus_php || 0)}</td><td class="n"><b>${php(t.fee_php + (t.bonus_php || 0))}</b></td></tr>`).join("")}</tbody></table></div></div>`).join("") || `<div class="empty">지급할 적립 건이 없습니다.</div>`}
+      ${LIVE ? `<div class="panel" style="margin-bottom:12px"><h3>예정된 지급 <span class="sm muted">GCash/Maya/은행으로 송금 후 「송금 완료」</span></h3>${(st.payouts || []).filter((p) => p.status === "scheduled").map((p) => { const acc = (p.creator && p.creator.payout_account) || {}; const m = (p.creator && p.creator.payout_method) || "-"; return `<div class="row"><div><div class="t">${esc(p.creator ? p.creator.name : p.creator_id)} · <b>${php(p.amount_php)}</b></div><div class="sub">${p.period_start} ~ ${p.period_end} · ${esc(m.toUpperCase())} ${esc(acc.number || acc.account || "")} ${esc(acc.name || acc.holder || "")}${!acc.number && !acc.account ? ' <span style="color:var(--accent)">(크리에이터가 지급 수단 미입력)</span>' : ""}</div></div><div><button class="btn btn-brand" style="height:34px;font-size:13px" data-paid="${p.id}">송금 완료</button></div></div>`; }).join("") || `<p class="muted sm">예정된 지급이 없습니다.</p>`}
+      <h3 style="margin-top:14px">지급 완료</h3>${(st.payouts || []).filter((p) => p.status === "paid").slice(0, 20).map((p) => `<div class="row"><div><div class="t">${esc(p.creator ? p.creator.name : "")} · ${php(p.amount_php)}</div><div class="sub">${p.period_start} ~ ${p.period_end} · ${when(p.paid_at)}${p.ref ? " · " + esc(p.ref) : ""}</div></div></div>`).join("") || `<p class="muted sm">아직 없음</p>`}</div>` : ""}
       <div class="panel"><h3>원화 환산 참고</h3><p class="sub">₱1 ≈ ₩24 기준. 실제 송금 시 환율과 수수료는 LIKHA 부담. GCash 대량 송금은 Wise Business 또는 GCash for Business 사용.</p></div>`;
   }
   function vMsgs(k) {
@@ -155,6 +157,7 @@
     const os = e.target.closest("[data-ost]"); if (os) { setOrder(os.dataset.id, os.dataset.ost); return; }
     const ts = e.target.closest("[data-tst]"); if (ts) { setTask(ts.dataset.id, ts.dataset.tst); return; }
     if (e.target.closest("#revOpen")) { $("#revF").hidden = false; $("#revF textarea").focus(); return; }
+    const pd = e.target.closest("[data-paid]"); if (pd) { if (!confirm("송금을 완료하셨나요? 크리에이터에게 지급 완료 알림이 갑니다.")) return; const { error } = await DB.sb.from("payouts").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", pd.dataset.paid); if (error) return toast(error.message); const p = (st.payouts || []).find((x) => x.id === pd.dataset.paid); if (p) DB.notifs.push(p.creator_id, "nt_paid_out", { a: p.amount_php.toLocaleString() }, "#earn").catch(() => { }); await load(); toast("지급 완료 처리"); render(); return; }
     const po = e.target.closest("[data-payout]"); if (po) { const items = st.tasks.filter((t) => t.status === "done" && !t.paid_out && (t.creator_id || "?") === po.dataset.payout); if (LIVE) { const d = new Date(); const { data: pay, error } = await DB.sb.from("payouts").insert({ creator_id: po.dataset.payout, period_start: new Date(d.getFullYear(), d.getMonth(), d.getDate() < 15 ? 1 : 16).toISOString().slice(0, 10), period_end: d.toISOString().slice(0, 10), amount_php: +po.dataset.sum, status: "scheduled" }).select().single(); if (error) return toast(error.message); await DB.sb.from("payout_items").insert(items.map((t) => ({ payout_id: pay.id, task_id: t.id, amount_php: t.fee_php + (t.bonus_php || 0) }))); await DB.notifs.push(po.dataset.payout, "nt_pay", { a: (+po.dataset.sum).toLocaleString() }, "#earn"); await load(); } else items.forEach((t) => (t.paid_out = true)); toast("지급 건 생성: " + php(+po.dataset.sum)); render(); return; }
     if (e.target.closest("#gLogin")) { DB.auth.signInGoogle(location.href.split("#")[0]).catch((x) => toast(x.message)); return; }
   });

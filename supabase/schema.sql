@@ -227,6 +227,7 @@ drop policy if exists n_staff_ins on notifications; create policy n_staff_ins on
 drop policy if exists py_own on payouts; create policy py_own on payouts for select using (creator_id = auth.uid() or is_staff());
 drop policy if exists py_staff on payouts; create policy py_staff on payouts for all using (is_staff());
 drop policy if exists pyi_read on payout_items; create policy pyi_read on payout_items for select using (is_staff() or exists (select 1 from payouts p where p.id = payout_id and p.creator_id = auth.uid()));
+drop policy if exists pyi_staff on payout_items; create policy pyi_staff on payout_items for all using (is_staff()) with check (is_staff());
 
 -- realtime
 do $$ begin

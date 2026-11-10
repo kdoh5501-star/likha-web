@@ -36,3 +36,25 @@ begin
 end $$;
 drop trigger if exists order_events_notify on order_events;
 create trigger order_events_notify after insert on order_events for each row execute function on_order_event_notify();
+
+-- orders: client confirmed (-> done) => auto-credit delivered tasks (tasks.status -> done, triggers creator notification + deliveries count)
+create or replace function on_order_done_credit() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'done' and old.status is distinct from 'done' then
+    update tasks set status = 'done', done_at = now() where order_id = new.id and status = 'delivered';
+  end if;
+  return new;
+end $$;
+drop trigger if exists orders_done_credit on orders;
+create trigger orders_done_credit after update on orders for each row execute function on_order_done_credit();
+
+-- tasks.paid_out: set when a payout_item is created (PM 정산 화면에서 지급 생성 후 목록에서 빠지도록)
+alter table tasks add column if not exists paid_out boolean not null default false;
+create or replace function on_payout_item_mark() returns trigger language plpgsql security definer set search_path = public as $$
+begin update tasks set paid_out = true where id = new.task_id; return new; end $$;
+drop trigger if exists payout_items_mark on payout_items;
+create trigger payout_items_mark after insert on payout_items for each row execute function on_payout_item_mark();
+update tasks t set paid_out = true where exists (select 1 from payout_items i where i.task_id = t.id);
+
+-- RLS fix: staff could insert payouts but not payout_items (missing policy) -> 지급 생성 시 항목이 비는 버그
+drop policy if exists pyi_staff on payout_items; create policy pyi_staff on payout_items for all using (is_staff()) with check (is_staff());

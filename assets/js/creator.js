@@ -234,7 +234,7 @@
   /* ---------- earnings ---------- */
   function vEarn() {
     const done = st.tasks.filter((x) => x.status === "done").sort((a, b) => b.doneAt - a.doneAt);
-    const pend = done.reduce((a, x) => a + x.base + x.bonus, 0), paidTot = st.payouts.reduce((a, x) => a + x.amount, 0);
+    const pend = done.reduce((a, x) => a + x.base + x.bonus, 0), paidTot = st.payouts.filter((x) => !x.status || x.status === "paid").reduce((a, x) => a + x.amount, 0);
     const month = done.filter((x) => dateS(x.doneAt).slice(0, 7) === dateS(Date.now()).slice(0, 7)).reduce((a, x) => a + x.base + x.bonus, 0);
     const p = st.profile.payout;
     return `<div class="ph"><div><h1>${t("earn_title")}</h1><p>${t("payout_sched")}</p></div></div>
@@ -244,7 +244,7 @@
           ${done.map((x) => `<tr><td>${dateS(x.doneAt)}</td><td><a href="#task/${x.id}" class="link">${tname(x.type)}</a><br><span class="sm muted">${esc(x.client)}</span></td><td class="n">${fmt(x.base)}</td><td class="n">+${fmt(x.bonus)}</td><td class="n"><b>${fmt(x.base + x.bonus)}</b></td><td><span class="st done">${t("scheduled")}</span></td></tr>`).join("")}
         </tbody></table></div>
         <div class="panel led" style="margin-top:14px"><h3>${t("payouts")}</h3><span class="scrollhint">← swipe →</span><table><thead><tr><th>${t("col_date")}</th><th>${t("method")}</th><th class="n">${t("col_total")}</th><th>${t("col_status")}</th></tr></thead><tbody>
-          ${st.payouts.map((x) => `<tr><td>${x.date}</td><td>${x.method}</td><td class="n"><b>${fmt(x.amount)}</b></td><td><span class="st done">${t("paid")}</span></td></tr>`).join("")}</tbody></table></div>
+          ${st.payouts.map((x) => `<tr><td>${x.date}</td><td>${x.method}</td><td class="n"><b>${fmt(x.amount)}</b></td><td><span class="st ${x.status === "paid" || !x.status ? "done" : "work"}">${x.status === "paid" || !x.status ? t("paid") : t("scheduled")}</span></td></tr>`).join("")}</tbody></table></div>
       </div><div>
         <div class="panel"><h3>${t("method")}</h3><form id="payF"><div class="radio" style="margin-bottom:14px">${[["gcash", "GCash"], ["maya", "Maya"], ["bank", t("bank")]].map(([v, l]) => `<label class="${p.method === v ? "on" : ""}"><input type="radio" name="method" value="${v}" ${p.method === v ? "checked" : ""} hidden>${l}</label>`).join("")}</div>
           <div id="payFields">${payFields(p.method, p)}</div><button class="btn btn-dark" style="width:100%">${t("save")}</button></form><p class="sub" style="margin:12px 0 0">${t("method_note")}</p><p class="sub" style="margin:6px 0 0">${t("tax_note")}</p></div>
