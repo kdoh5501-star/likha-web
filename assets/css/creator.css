@@ -116,7 +116,8 @@ body.cc{background:var(--bg-2)}
 .thl.compact{border:0;margin:0 -8px}
 .thl.compact a{padding:10px 8px;border-radius:10px;border-bottom:0}
 .thl .sec{font-size:11px;font-weight:700;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;padding:14px 16px 6px}
-.thl a{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+.thl a{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+.thl a>div{min-width:0}
 .thl a:hover{background:var(--bg-2)}
 .thl a.on{background:var(--brand-soft)}
 .thl .av{width:36px;height:36px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;font-size:12px}
@@ -160,6 +161,7 @@ body.cc{background:var(--bg-2)}
 
 /* earnings */
 .led{overflow:auto}
+.led .scrollhint{display:none}
 .led table{width:100%;min-width:520px;border-collapse:collapse;font-size:14px}
 .led th,.led td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}
 .led th{font-size:12px;color:var(--muted);font-weight:700}
@@ -211,6 +213,13 @@ body.cc{background:var(--bg-2)}
   .msgs.mobile-td .thl{display:none}
   .backth{display:inline-grid}
   .bub{max-width:88%}
+  .led{position:relative;-webkit-overflow-scrolling:touch}
+  .led table{min-width:460px;font-size:13px}
+  .led th,.led td{padding:8px 6px}
+  .led .scrollhint{display:block;font-size:11px;color:var(--faint);margin:-4px 0 8px}
+  .tabs{scrollbar-width:none;mask-image:linear-gradient(90deg,#000 92%,transparent)}
+  .tabs::-webkit-scrollbar{display:none}
+  .tcard .nm,.tcard h3,.ocard b{overflow-wrap:anywhere}
   .cc-tab{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;height:calc(60px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg);border-top:1px solid var(--line);z-index:50}
   .cc-tab a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:700;color:var(--muted);position:relative}
   .cc-tab a svg{width:22px;height:22px}

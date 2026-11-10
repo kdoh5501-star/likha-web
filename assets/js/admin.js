@@ -102,7 +102,7 @@
   }
   function vCreators() {
     return `<div class="ph"><div><h1>크리에이터</h1><p>레벨은 분기마다 검토. 보너스 +10/20/30%.</p></div></div>${demoBar()}
-      <div class="panel led"><table><thead><tr><th>이름</th><th>레벨</th><th>할 수 있는 작업</th><th>툴</th><th class="n">주당</th><th class="n">납품</th><th class="n">1회 통과</th><th class="n">기한</th><th></th></tr></thead><tbody>
+      <div class="panel led"><span class="scrollhint">← 좌우로 스크롤 →</span><table><thead><tr><th>이름</th><th>레벨</th><th>할 수 있는 작업</th><th>툴</th><th class="n">주당</th><th class="n">납품</th><th class="n">1회 통과</th><th class="n">기한</th><th></th></tr></thead><tbody>
       ${st.creators.map((c) => `<tr><td><b>${esc(c.name)}</b><br><span class="sm muted">${esc(c.city || "")} ${c.email ? "· " + esc(c.email) : ""}</span></td><td><select class="sel" data-lvl="${c.id}">${[1, 2, 3, 4].map((n) => `<option ${c.level === n ? "selected" : ""}>${n}</option>`).join("")}</select></td><td>${(c.skills || []).map((k) => `<span class="pill">${TYPE_N[k]}</span>`).join(" ")}</td><td class="sm">${(c.tools || []).join(", ")}</td><td class="n">${c.capacity}</td><td class="n">${c.deliveries}</td><td class="n">${c.first_pass}%</td><td class="n">${c.ontime}%</td><td><a class="link" href="#msgs/pm:${c.id}">채팅</a></td></tr>`).join("")}</tbody></table></div>`;
   }
   function vPayouts() {
