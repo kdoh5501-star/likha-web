@@ -278,7 +278,7 @@
         <div><a class="sm muted" href="#orders">← 내 주문</a><h1 style="font-size:22px;font-weight:800;margin-top:6px">주문번호 <span class="num">${o.orderId || o.id}</span></h1><div class="sm muted num">${o.date} 결제 · ${o.method === "mock" ? "테스트 결제" : "토스페이먼츠"}</div></div>
         <div class="panel"><div class="progress">${STEPS.map(([k, l], i) => `<div class="${i < idx ? "done" : i === idx ? "cur" : ""}"><i></i>${l}</div>`).join("")}</div></div>
         ${action}
-        <div class="panel"><h2>주문 정보</h2><div class="oitem"><div class="t">${T.img(s)}</div><div class="b"><b>${esc(s.title)}</b><span class="sm">${p.n} · ${esc(p.desc)}${o.optNames && o.optNames.length ? " · 옵션: " + o.optNames.map(esc).join(", ") : ""}</span><span class="sm num">결제금액 ${won(o.amount)}</span></div></div>${o.req ? `<hr class="hr"><div class="sm"><b>요청사항</b><p class="muted" style="margin-top:4px">${esc(o.req)}</p></div>` : ""}</div>
+        <div class="panel"><h2>주문 정보</h2><div class="oitem"><div class="t">${T.img(s)}</div><div class="b"><b>${esc(s.title)}</b><span class="sm">${p.n} · ${esc(p.desc)}${o.optNames && o.optNames.length ? " · 옵션: " + o.optNames.map(esc).join(", ") : ""}</span><span class="sm num">결제금액 ${won(o.amount)}${o.refund && o.status !== "refunded" ? ` · <b style="color:var(--accent)">부분 환불 ${won(o.refund.amount)} 완료</b>` : ""}</span></div></div>${o.req ? `<hr class="hr"><div class="sm"><b>요청사항</b><p class="muted" style="margin-top:4px">${esc(o.req)}</p></div>` : ""}</div>
       </div>
       <aside class="panel"><h2>메시지</h2><p class="sm muted">크리에이터와 PM이 함께 보는 대화방입니다. 한국어로 쓰셔도 돼요.</p>
         <div class="msgs" id="msgs">${o.msgs.map(m => `<div class="msg ${m.me ? "me" : ""}">${esc(m.t)}<small>${m.me ? "나" : esc(m.w)}</small></div>`).join("")}</div>
